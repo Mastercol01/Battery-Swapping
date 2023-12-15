@@ -6,8 +6,8 @@
 // MCP2515 ARDUINO NANO CONNECTIONS
 // VCC → 5v
 // GND → GND
-// CS (battery) → D10
-// CS (network) → D9
+// CS (battery) → D9
+// CS (network) → D10
 // SO → D12
 // SI → D11
 // SCK → D13
@@ -24,8 +24,8 @@ const int DOOR_LOCK_SOLENOID_PIN = 6;
 const int BATTERY_LOCK_SOLENOID_PIN = 3;
 const int LED_STRIP_PIN = 5;
 const int REED_SWITCH_PIN = 14;
-const int LOCAL_CAN_CS_PIN = 10;
-const int GLOBAL_CAN_CS_PIN = 9;
+const int LOCAL_CAN_CS_PIN = 9;
+const int GLOBAL_CAN_CS_PIN = 10;
 const int NUM_LEDS_IN_STRIP = 60;
 const bool BMS_CONNECTION_TO_RELAY_IS_NORMALLY_OPEN = 1;
 
@@ -139,7 +139,7 @@ typedef struct
 
 
   void setDoorLockSolenoidState(bool state){
-    if (state) {analogWrite(DOOR_LOCK_SOLENOID_PIN, 130);}
+    if (state) {analogWrite(DOOR_LOCK_SOLENOID_PIN, 255);}
     else       {digitalWrite(DOOR_LOCK_SOLENOID_PIN, 0);}
     doorLockSolenoidState = state;
   }
@@ -147,7 +147,7 @@ typedef struct
 
 
   void setBatteryLockSolenoidState(bool state){
-    if (state) {analogWrite(BATTERY_LOCK_SOLENOID_PIN, 130);}
+    if (state) {analogWrite(BATTERY_LOCK_SOLENOID_PIN, 255);}
     else       {digitalWrite(BATTERY_LOCK_SOLENOID_PIN, 0);}
     batteryLockSolenoidState = state;
   }
@@ -468,16 +468,18 @@ void loop() {
   //if (millis() - module.sendBatteryDataTimer > module.sendBatteryDataTimeout){
     //module.sendBatteryDataToGlobalNetwork();
     //module.sendBatteryDataTimer = millis();
-    //Serial.print("There");
+    //Serial.print("ThflipRelayState()ere");
   //}
 
   // --- 4) READ FROM GLOBAL NETWORK AND EXECUTE COMMANDS ---
   //module.readFromGlobalNetworkAndExecuteCommand();
 
-  module.visualizeLocalNetwork();
+  // module.visualizeLocalNetwork();
+
+module.flipRelayState();
+delay(1000);
+
+module.flipBatteryLockSolenoidState();
+delay(1000);
  
 }
-
-
-
-
