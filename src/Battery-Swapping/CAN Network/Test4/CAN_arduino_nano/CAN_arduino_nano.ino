@@ -284,7 +284,7 @@ typedef struct
       
 
       for (int i = 0; i <= 7; i++){
-        Serial.print(canMsg.data[0]);
+        Serial.print(canMsg.data[i]);
         if (i<7){Serial.print(",");}
         else    {Serial.println(",");}
       }
