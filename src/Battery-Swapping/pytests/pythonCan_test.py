@@ -46,5 +46,6 @@ try:
 	
 except KeyboardInterrupt:
 	#Catch keyboard interrupt
+	print('\n\rKeyboard interrtupt')
 	os.system("sudo /sbin/ip link set can0 down")
-	print('\n\rKeyboard interrtupt')	
+		
