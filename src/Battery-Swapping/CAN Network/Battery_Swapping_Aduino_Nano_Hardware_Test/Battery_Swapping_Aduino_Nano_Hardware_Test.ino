@@ -196,7 +196,7 @@ void loop() {
   if      (1*littleTimeSkip + bigTimeSkip > solenoidsTimerDiff && solenoidsTimerDiff >= 0*littleTimeSkip + bigTimeSkip){digitalWrite(RELAY_PIN, LOW);}
   else if (2*littleTimeSkip + bigTimeSkip > solenoidsTimerDiff && solenoidsTimerDiff >= 1*littleTimeSkip + bigTimeSkip){digitalWrite(DOOR_LOCK_SOLENOID_PIN, LOW);}
   else if (3*littleTimeSkip + bigTimeSkip > solenoidsTimerDiff && solenoidsTimerDiff >= 2*littleTimeSkip + bigTimeSkip){digitalWrite(BATTERY_LOCK_SOLENOID_PIN, LOW);}
-  else if (4*littleTimeSkip + bigTimeSkip > solenoidsTimerDiff && solenoidsTimerDiff >= 3*littleTimeSkip + bigTimeSkip){solenoidsTimer = millis();}
+  else if (4*littleTimeSkip + 2*bigTimeSkip > solenoidsTimerDiff && solenoidsTimerDiff >= 3*littleTimeSkip + 2*bigTimeSkip){solenoidsTimer = millis();}
 
 
 }
