@@ -455,31 +455,24 @@ void setup() {
 void loop() {
   
   // --- 1) READ FROM LOCAL NETWORK AND UPDATE BATTERY AND BMS DATA ---
- // module.readFromLocalNetworkAndUpdate_BatteryData_BmsConnectionState_BmsConnectionError();
+  module.readFromLocalNetworkAndUpdate_BatteryData_BmsConnectionState_BmsConnectionError();
 
   // --- 2) SEND MODULE STATES TO GLOBAL NETWORK ---
-  //if (millis() - module.sendModuleStatesTimer > module.sendModuleStatesTimeout){
-  //  module.sendModuleStatesToGlobalNetwork();
-  //  module.sendModuleStatesTimer = millis();
-  //  Serial.print("Here");
-  //}
+  if (millis() - module.sendModuleStatesTimer > module.sendModuleStatesTimeout){
+    module.sendModuleStatesToGlobalNetwork();
+    module.sendModuleStatesTimer = millis();
+  }
 
   // --- 3) SEND BATTERY DATA TO GLOBAL NETWORK ---
-  //if (millis() - module.sendBatteryDataTimer > module.sendBatteryDataTimeout){
-    //module.sendBatteryDataToGlobalNetwork();
-    //module.sendBatteryDataTimer = millis();
-    //Serial.print("ThflipRelayState()ere");
-  //}
+  if (millis() - module.sendBatteryDataTimer > module.sendBatteryDataTimeout){
+    module.sendBatteryDataToGlobalNetwork();
+    module.sendBatteryDataTimer = millis();
+  }
 
   // --- 4) READ FROM GLOBAL NETWORK AND EXECUTE COMMANDS ---
-  //module.readFromGlobalNetworkAndExecuteCommand();
+  module.readFromGlobalNetworkAndExecuteCommand();
 
   // module.visualizeLocalNetwork();
-
-module.flipRelayState();
-delay(1000);
-
-module.flipBatteryLockSolenoidState();
-delay(1000);
+  // module.visualizeGlobalNetwork();
  
 }
