@@ -9,8 +9,10 @@ print("Serial OK")
 try:
     while True:
         time.sleep(1)
-        print("Send message to Arduino")
-        ser.write("Hello from RPY\n".encode("utf-8"))
-except KeyboardInterrupt:
+        canId = int('100' + '101' + '00' + '{0:08b}'.format(15) + '{0:08b}'.format(1) + '{0:08b}'.format(9), 2)
+        canStr = str(canId) + "-1,1,1,1,1,1,1,1,\n"
+        print(f"Send message to Arduino: {canStr}")
+        ser.write(canStr.encode("utf-8"))
+except KeyboardInterrupt:                                                                                                               
     print("Close serial communication")
     ser.close()

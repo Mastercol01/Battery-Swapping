@@ -13,8 +13,27 @@
 // SCK → D13
 // INT → D2
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // --- MODULE AND CONTROL CENTER ADDRESS SET-UP ---
-const uint8_t MODULE_ADDRESS = 3;
+const uint8_t MODULE_ADDRESS = 2;
 const uint8_t CONTROL_CENTER_ADDRESS = 9;
 
 
@@ -473,6 +492,7 @@ void loop() {
   module.readFromGlobalNetworkAndExecuteCommand();
 
   // module.visualizeLocalNetwork();
-  // module.visualizeGlobalNetwork();
+  
+  module.visualizeGlobalNetwork();
  
 }

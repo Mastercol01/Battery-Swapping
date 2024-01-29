@@ -74,5 +74,4 @@ void loop(){
     canMsg_RPY = canStrToCanMsg(Serial.readStringUntil('\n'));
     mcp2515Global.sendMessage(&canMsg_RPY);
     }
-
 }
