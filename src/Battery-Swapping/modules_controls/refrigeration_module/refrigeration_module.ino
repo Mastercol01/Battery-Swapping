@@ -1,18 +1,19 @@
-// -------------- IMPORTATION OF LIBRARIES --------------
 #include <stdio.h>     
 #include <math.h>   
 
+// -------------- PINS SET-UP --------------
+const int THERMISTOR_PIN = A7;
+const int FAN_SPEEDS_CONTROL_PIN = 9;
+
 // -------------- MODULE SET-UP --------------
-float Vcc = 5.0;
-float R1 = 33120.0;
-int NUM_Tt_AVGS = 30;
-int THERMISTOR_PIN = A7;
-int FAN_SPEEDS_CONTROL_PIN = 9;
-float fanActivationThresholdTemperature = 27; 
-float fanMaxedOutSpeedThresholdTemperature = 42;
+const float Vcc = 5.0;                // The thermistor's supply voltage.
+const float R1 = 33120.0;             // Resistance of the the thermistor's accompanying series resistor.
+const int NUM_THERMISTOR_AVGS = 30;   
+const float fanActivationThresholdTemperature = 27; 
+const float fanMaxedOutSpeedThresholdTemperature = 42;
 
 // -------------- 25kHz PWM SET-UP --------------
-//PWM output @ 25 kHz, only on pins 9 and 10.
+// PWM output @ 25 kHz, only on pins 9 and 10.
 // Output value should be between 0 and 320, inclusive.
 void analogWrite25k(int pin, int value){
   switch (pin){
@@ -29,19 +30,23 @@ void analogWrite25k(int pin, int value){
   }
 }
 
-// -------------- TEMPERATURE SENSING SET-UP --------------
+// -------------- TEMPERATURE SENSING FUNCTION --------------
 float readThermistorTemperature(){
+  // INIT VARS
+  float Vt; // Voltage drop across thermistor [V].
+  float Rt; // Thermistor resistance [Ohm].
+  float Tt; // Thermistor temperature [°C]
 
-  // 1) READ THERMISTOR VOLTAGE
-  float Vt = 0;
-  for(int j=0; j<NUM_Tt_AVGS; j++){
+  // 1) READ SMOOTHED-OUT VOLTAGE FROM THERMISTOR PIN
+  Vt = 0;
+  for(int j=0; j<NUM_THERMISTOR_AVGS; j++){
     Vt += analogRead(THERMISTOR_PIN);
   }
-  Vt /= NUM_Tt_AVGS;
+  Vt /= NUM_THERMISTOR_AVGS;
   Vt = Vcc*Vt/1023.0;
 
   // 2) COMPUTE THERMISTOR RESISTANCE
-  float Rt = R1*Vt/(Vcc - Vt);
+  Rt = R1*Vt/(Vcc - Vt);
 
   // 3) COMPUTE THERMISTOR TEMPERATURE
   float A =  610.5282190830485;
@@ -51,14 +56,11 @@ float readThermistorTemperature(){
   float E = -0.0019710091731159445;
 
   float lnRt = log(Rt);
-  float Tt = A + B*lnRt + C*pow(lnRt,2) + D*pow(lnRt,3) + E*pow(lnRt,4);
-
-  // 4) RETURN VALUE
+  Tt = A + B*lnRt + C*pow(lnRt,2) + D*pow(lnRt,3) + E*pow(lnRt,4);
   return Tt;
 }
 
-// -------------- TEMPERATURE SENSING SET-UP --------------
-
+// -------------- TEMPERATURE-BASED FAN CONTROL FUNCTION --------------
 float setFanSpeeds(float Tt){
   int dutyCycle = int(map(Tt, fanActivationThresholdTemperature, fanMaxedOutSpeedThresholdTemperature, 32, 320));
   if      (dutyCycle <  32){dutyCycle = 0;}
@@ -68,9 +70,7 @@ float setFanSpeeds(float Tt){
 }
 
 
-
 void setup(){
-  // --- INITIAL SET-UP---
   Serial.begin(9600);
   pinMode(THERMISTOR_PIN, INPUT);
 
@@ -91,11 +91,14 @@ void setup(){
 }
 
 void loop() {
+
+  // 1) Read temperature.
+  // 2) Set fans' speeds according to temperature.
+  // 3) Print temperature and duty cycle to the serial monitor for revision.
+
   float Tt = readThermistorTemperature();
   float dutyCycle = setFanSpeeds(Tt);
   String dataString = "(Temperature, Fan duty cycle) = (";
   dataString = dataString + Tt + ", " + dutyCycle + ")";
   Serial.println(dataString);
-  
-
 }

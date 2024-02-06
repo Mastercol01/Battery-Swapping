@@ -14,24 +14,6 @@
 // INT → D2
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // --- MODULE AND CONTROL CENTER ADDRESS SET-UP ---
 const uint8_t MODULE_ADDRESS = 2;
 const uint8_t CONTROL_CENTER_ADDRESS = 9;
@@ -73,7 +55,6 @@ uint32_t createCanMsgCanId(uint8_t priorityLevel, uint8_t activityCode, uint8_t 
   canId = canId | ((uint32_t) activityCode) << 16;
   for (int i = 0; i <= 2; i++){bitWrite(canId, 26 + i, bitRead(priorityLevel, i));}  
   bitWrite(canId, 31, 1);
-
   return canId;
 }
 
