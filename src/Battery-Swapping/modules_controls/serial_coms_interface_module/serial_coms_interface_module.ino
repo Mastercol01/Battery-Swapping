@@ -1,4 +1,3 @@
-// ------ IMPORTATION OF LIBRARIES ------ 
 #include <SPI.h>
 #include <mcp2515.h> 
 #include <Adafruit_NeoPixel.h>
@@ -64,12 +63,12 @@ void setup(){
 
 void loop(){
 
-  // Receive CAN messages from global network and send it via Serial as strings.
+  // Receive CAN messages from global network and send it via Serial to the RPY as strings.
   if (mcp2515Global.readMessage(&canMsg_arduinos) == MCP2515::ERROR_OK && !Serial.available()){
     Serial.print(canMsgToCanStr(canMsg_arduinos));    
   }
 
-  // Receive data from Serial and send it over the from network as CAN messages.
+  // Receive data via Serial from the RPY and send it over to the global network as CAN messages.
   if(Serial.available() > 0){
     canMsg_RPY = canStrToCanMsg(Serial.readStringUntil('\n'));
     mcp2515Global.sendMessage(&canMsg_RPY);

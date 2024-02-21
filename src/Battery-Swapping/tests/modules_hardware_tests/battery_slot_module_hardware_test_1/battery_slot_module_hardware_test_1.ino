@@ -15,7 +15,7 @@
 
 
 // (1) --- MODULE AND CONTROL CENTER ADDRESS SET-UP --- (1)
-const uint8_t MODULE_ADDRESS = 1;
+const uint8_t MODULE_ADDRESS = 8;
 const uint8_t CONTROL_CENTER_ADDRESS = 9;
 
 // (2) --- PINS SET-UP --- (2)

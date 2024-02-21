@@ -1,3 +1,6 @@
+// MODULE DESRIPTION:
+// This script is designed for the arduino 
+
 #include <stdio.h>     
 #include <math.h>   
 
@@ -9,8 +12,8 @@ const int FAN_SPEEDS_CONTROL_PIN = 9;
 const float Vcc = 5.0;                // The thermistor's supply voltage.
 const float R1 = 33120.0;             // Resistance of the the thermistor's accompanying series resistor.
 const int NUM_THERMISTOR_AVGS = 30;   
-const float fanActivationThresholdTemperature = 27; 
-const float fanMaxedOutSpeedThresholdTemperature = 42;
+const float fanActivationThresholdTemperature = 26; 
+const float fanMaxedOutSpeedThresholdTemperature = 40;
 
 // -------------- 25kHz PWM SET-UP --------------
 // PWM output @ 25 kHz, only on pins 9 and 10.
