@@ -1,21 +1,27 @@
-// MODULE DESRIPTION:
-// This script is designed for the arduino 
+/* 
+MODULE DESRIPTION
+
+This script controls the station's refrigeration system. 
+The refrigeration system is composed of two PWM-controllable fans and a thermocouple for 
+temperature sensing. This module instructs to arduino to constantly read the ambient temperature 
+adjust the duty cycle that controls the fans' speed accordingly.
+*/
 
 #include <stdio.h>     
 #include <math.h>   
 
-// -------------- PINS SET-UP --------------
+// PINS SET-UP 
 const int THERMISTOR_PIN = A7;
 const int FAN_SPEEDS_CONTROL_PIN = 9;
 
-// -------------- MODULE SET-UP --------------
+// MODULE SET-UP 
 const float Vcc = 5.0;                // The thermistor's supply voltage.
 const float R1 = 33120.0;             // Resistance of the the thermistor's accompanying series resistor.
 const int NUM_THERMISTOR_AVGS = 30;   
-const float fanActivationThresholdTemperature = 26; 
-const float fanMaxedOutSpeedThresholdTemperature = 40;
+const float fanActivationTemperature = 26; 
+const float fanMaxSpeedTemperature = 40;
 
-// -------------- 25kHz PWM SET-UP --------------
+// 25kHz PWM SET-UP 
 // PWM output @ 25 kHz, only on pins 9 and 10.
 // Output value should be between 0 and 320, inclusive.
 void analogWrite25k(int pin, int value){
@@ -33,9 +39,9 @@ void analogWrite25k(int pin, int value){
   }
 }
 
-// -------------- TEMPERATURE SENSING FUNCTION --------------
+// TEMPERATURE SENSING FUNCTION 
 float readThermistorTemperature(){
-  // INIT VARS
+  // Init vars
   float Vt; // Voltage drop across thermistor [V].
   float Rt; // Thermistor resistance [Ohm].
   float Tt; // Thermistor temperature [°C]
@@ -63,9 +69,9 @@ float readThermistorTemperature(){
   return Tt;
 }
 
-// -------------- TEMPERATURE-BASED FAN CONTROL FUNCTION --------------
+// TEMPERATURE-BASED FAN CONTROL FUNCTION
 float setFanSpeeds(float Tt){
-  int dutyCycle = int(map(Tt, fanActivationThresholdTemperature, fanMaxedOutSpeedThresholdTemperature, 32, 320));
+  int dutyCycle = int(map(Tt, fanActivationTemperature, fanMaxSpeedTemperature, 32, 320));
   if      (dutyCycle <  32){dutyCycle = 0;}
   else if (dutyCycle > 320){dutyCycle = 320;}
   analogWrite25k(FAN_SPEEDS_CONTROL_PIN, dutyCycle);

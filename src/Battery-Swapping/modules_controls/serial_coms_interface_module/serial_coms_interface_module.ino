@@ -1,24 +1,28 @@
+/* 
+MODULE DESRIPTION
+
+This script mediates the communication between the Raspberry Pi and the rest of the global CAN network. 
+It turns out that implementing CAN-bus communication directly with the Raspberry Pi is a very error-prone 
+process and a pain in the ass. Serial communication, on the other hand, is a piece of cake. 
+Thus, it is easier and more reliable to convert between modes of communication, when trying to interface the 
+global CAN network together with the Raspberry Pi. To do this, we translate CAN messages proceeding from the 
+global CAN network into string messages that can be sent to the Raspberry Pi via Serial, and we translate
+string messages coming from the Raspberry Pi into CAN messages that can then be sent over the global CAN network.
+*/
+
 #include <SPI.h>
 #include <mcp2515.h> 
 #include <Adafruit_NeoPixel.h>
 
-// MCP2515 ARDUINO NANO CONNECTIONS
-// VCC → 5v
-// GND → GND
-// CS (network) → D9
-// SO → D12
-// SI → D11
-// SCK → D13
-// INT → D2
-
-// --- PINS SET-UP ---
+// PINS SET-UP 
 const int GLOBAL_CAN_CS_PIN = 9;
 
-// --- CAN-BUS SET-UP ---
+// CAN-BUS SET-UP
 struct can_frame canMsg_RPY; 
 struct can_frame canMsg_arduinos; 
 MCP2515 mcp2515Global(GLOBAL_CAN_CS_PIN); 
 
+// CAN MSG ---> CAN STRING FUNCTION
 String canMsgToCanStr(can_frame canMsg){
   String canStr = String(canMsg.can_id) + "-";
   canStr += String(canMsg.data[0]) + ",";
@@ -33,6 +37,7 @@ String canMsgToCanStr(can_frame canMsg){
   return canStr;
 }
 
+// CAN MSG <--- CAN STRING FUNTION
 can_frame canStrToCanMsg(String canStr){
   String canData;
   can_frame canMsg;
