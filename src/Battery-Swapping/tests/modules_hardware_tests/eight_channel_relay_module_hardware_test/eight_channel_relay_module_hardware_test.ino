@@ -13,10 +13,10 @@
 // INT → D2
 
 uint32_t flipChannelTimer;
-uint32_t flipChannelCounter = 0;
+uint32_t flipChannelCounter;
 uint32_t flipChannelTimeSkip = 1000;
 uint8_t eightChannelRelayStates[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-uint8_t EIGHT_CHANNEL_RELAY_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
+const uint8_t EIGHT_CHANNEL_RELAY_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
 
 void setChannelState(uint8_t idx, uint8_t state){
     if(idx<8 && (state==0 || state==1)){
@@ -27,16 +27,19 @@ void setChannelState(uint8_t idx, uint8_t state){
 void fipChannelState(uint8_t idx){setChannelState(idx, !eightChannelRelayStates[idx]);}
 
 
-
 void setup() {
-    for(int i=0; i++; i<8){
-        pinMode(EIGHT_CHANNEL_RELAY_PINS[8], OUTPUT);
-        setChannelState(idx, 0);
+    Serial.begin(9600);
+
+    for(int i=0; i<8; i++){
+        pinMode(EIGHT_CHANNEL_RELAY_PINS[i], OUTPUT);
+        setChannelState(i, 0);
     }
-    flipChannelCounter = millies();
+    flipChannelCounter = 0;
+    flipChannelTimer = 0;
 }
 
 void loop() {
+    
     
     if(millis() - flipChannelTimer > flipChannelTimeSkip){
         if(flipChannelCounter < 8){
@@ -46,7 +49,7 @@ void loop() {
         fipChannelState(flipChannelCounter);
         flipChannelTimer = millis();
     }
-
+    
 
 
 }
