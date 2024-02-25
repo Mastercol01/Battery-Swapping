@@ -5,11 +5,11 @@
 struct can_frame canMsg; 
 MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
+
 // -DEFINITION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
 class EightChannelRelayModule
 {
   public:
-
   // (1) DEFINITION OF ENUMERATIONS
   enum CHANNEL_STATE {OFF, ON};
   enum CHANNEL_NAME 
@@ -29,6 +29,7 @@ class EightChannelRelayModule
   const int CHANNEL_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
   const canUtils::MODULE_ADDRESS moduleAddress = canUtils::EIGHT_CHANNEL_RELAY;
   
+
   // (3) DEFINITION OF METHODS
 
   // (3.1) Constructor Method
@@ -53,9 +54,7 @@ class EightChannelRelayModule
   }
   void flipChannelStates(bool flipLogic[8]){
     for (int i=0; i<8; i++){
-      if (flipLogic[i]){
-        fipChannelState(static_cast<CHANNEL_NAME>(i));
-      }
+      if (flipLogic[i]){fipChannelState(static_cast<CHANNEL_NAME>(i));}
     }
   }
 
@@ -117,6 +116,7 @@ class EightChannelRelayModule
   }
 
 };
+
 
 // -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
 EightChannelRelayModule eightChannelRelayModule;
