@@ -10,72 +10,76 @@ global CAN network into string messages that can be sent to the Raspberry Pi via
 string messages coming from the Raspberry Pi into CAN messages that can then be sent over the global CAN network.
 */
 
-#include <SPI.h>
 #include <mcp2515.h> 
-#include <Adafruit_NeoPixel.h>
+#include <CanUtils.h>
 
-// PINS SET-UP 
-const int GLOBAL_CAN_CS_PIN = 9;
+// -DEFINITION OF CAN-BUS VARIABLES-
+struct can_frame canMsg_net2rpy = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
+struct can_frame canMsg_rpy2net = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
+MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
-// CAN-BUS SET-UP
-struct can_frame canMsg_RPY; 
-struct can_frame canMsg_arduinos; 
-MCP2515 mcp2515Global(GLOBAL_CAN_CS_PIN); 
-
-// CAN MSG ---> CAN STRING FUNCTION
-String canMsgToCanStr(can_frame canMsg){
+// CAN MSG ---> CAN STRING 
+String canMsg2canStr(struct can_frame canMsg){
   String canStr = String(canMsg.can_id) + "-";
-  canStr += String(canMsg.data[0]) + ",";
-  canStr += String(canMsg.data[1]) + ",";
-  canStr += String(canMsg.data[2]) + ",";
-  canStr += String(canMsg.data[3]) + ",";
-  canStr += String(canMsg.data[4]) + ",";
-  canStr += String(canMsg.data[5]) + ",";
-  canStr += String(canMsg.data[6]) + ",";
-  canStr += String(canMsg.data[7]) + ",";
+  for (int i=0; i<8; i++){
+    canStr += String(canMsg.data[i]) + ",";
+  }
   canStr += "\n";
   return canStr;
 }
 
-// CAN MSG <--- CAN STRING FUNTION
-can_frame canStrToCanMsg(String canStr){
+// CAN MSG <--- CAN STRING 
+can_frame canStr2canMsg(String canStr){
   String canData;
-  can_frame canMsg;
   int commaStrIndex;
   int hyphenStrIndex;
+  struct can_frame canMsg = {.can_dlc = 8};
 
   hyphenStrIndex = canStr.indexOf("-");
   canData = canStr.substring(hyphenStrIndex+1);
-
-  canMsg.can_dlc = 8;
   canMsg.can_id = uint32_t(canStr.substring(0, hyphenStrIndex).toInt());
-  for (int i = 0; i <= 7; i++){
+
+  for (int i=0; i<8; i++){
     commaStrIndex = canData.indexOf(",");
     canMsg.data[i] = uint8_t(canData.substring(0, commaStrIndex).toInt());
-    canData = canData.substring(commaStrIndex+1);}
-
+    canData = canData.substring(commaStrIndex+1);
+  }
   return canMsg;
+}
+
+void transmit_net2rpy(MCP2515& canNetwork, struct can_frame* p_canMsg){
+  if (canUtils::readCanMsg(canNetwork, p_canMsg, canUtils::CONTROL_CENTER) == MCP2515::ERROR_OK){
+    Serial.print(canMsg2canStr(*p_canMsg));
+  }
+}
+
+void transmit_rpy2net(MCP2515& canNetwork, struct can_frame* p_canMsg){
+  if (Serial.available() > 0){
+    *p_canMsg = canStr2canMsg(Serial.readStringUntil('\n'));
+    canNetwork.sendMessage(p_canMsg);
+  }
 }
 
 
 void setup(){
+
+  // Initialize Serial Communication
   Serial.begin(115200); // Initialize Serial comunication.
-  mcp2515Global.reset();
-  mcp2515Global.setBitrate(CAN_250KBPS, MCP_8MHZ); // The MCP2515 arduino module, has  an 8MHz clock.
-  mcp2515Global.setNormalMode();
+
+  // CAN Network standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetworkGlobal)
+
 }
 
 
 void loop(){
 
   // Receive CAN messages from global network and send it via Serial to the RPY as strings.
-  if (mcp2515Global.readMessage(&canMsg_arduinos) == MCP2515::ERROR_OK && !Serial.available()){
-    Serial.print(canMsgToCanStr(canMsg_arduinos));    
-  }
+  transmit_net2rpy(canNetworkGlobal, &canMsg_net2rpy);
 
   // Receive data via Serial from the RPY and send it over to the global network as CAN messages.
-  if(Serial.available() > 0){
-    canMsg_RPY = canStrToCanMsg(Serial.readStringUntil('\n'));
-    mcp2515Global.sendMessage(&canMsg_RPY);
-    }
+  transmit_rpy2net(canNetworkGlobal, &canMsg_rpy2net);
 }
+
+
+
