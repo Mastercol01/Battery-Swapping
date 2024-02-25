@@ -61,11 +61,13 @@ class EightChannelRelayModule
   // (3.3) Net2Rpy Methods
   void net2rpy_sendChannelStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
     p_canMsg->can_dlc = 8;
-    for (int i=0; i<8; i++){p_canMsg->data[i] = channelStates[i];}
 
+    for (int i=0; i<8; i++){
+      p_canMsg->data[i] = static_cast<uint8_t>(channelStates[i]);
+    }
     p_canMsg->can_id = 
     canUtils::createCanMsgCanId(canUtils::MEDIUM_LOW, 
-                                canUtils::STATES_OF_EIGHT_CHANNEL_RELAY_MODULE, 
+                                canUtils::net2rpy_STATES_INFO_OF_EIGHT_CHANNEL_RELAY_MODULE, 
                                 canUtils::CONTROL_CENTER,
                                 moduleAddress);
 
