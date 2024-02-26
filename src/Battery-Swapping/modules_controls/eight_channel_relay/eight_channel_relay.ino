@@ -62,7 +62,7 @@ class EightChannelRelayModule
     p_canMsg->can_dlc = 8;
 
     for (int i=0; i<8; i++){
-      p_canMsg->data[i] = static_cast<uint8_t>(channelStates[i]);
+      p_canMsg->data[i] = (uint8_t)channelStates[i];
     }
     p_canMsg->can_id = 
     canUtils::createCanMsgCanId(canUtils::MEDIUM_HIGH, 
@@ -98,12 +98,12 @@ class EightChannelRelayModule
   }
   void rpy2net_setChannelState(uint8_t canData[8]){
     CHANNEL_NAME name = static_cast<CHANNEL_NAME>(canData[0]);
-    bool state = bool(canData[1]);
+    bool state = (bool)canData[1];
     setChannelState(name, state);
   }
   void rpy2net_setChannelsStates(uint8_t canData[8]){
     bool states[8];
-    for (int i=0; i<8; i++){states[i] = bool(canData[i]);}
+    for (int i=0; i<8; i++){states[i] = (bool)canData[i];}
     setChannelsStates(states);
   }
   void rpy2net_flipChannelState(uint8_t canData[8]){
@@ -112,7 +112,7 @@ class EightChannelRelayModule
   }
   void rpy2net_flipChannelsStates(uint8_t canData[8]){
     bool flipLogic[8];
-    for (int i=0; i<8; i++){flipLogic[i] = bool(canData[i]);}
+    for (int i=0; i<8; i++){flipLogic[i] = (bool)canData[i];}
     flpChannelStates(flipLogic);
   }
 

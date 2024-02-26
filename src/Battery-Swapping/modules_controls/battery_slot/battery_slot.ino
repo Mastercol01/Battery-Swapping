@@ -41,6 +41,7 @@ class BatterySlotModule
     void BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress){
         this->moduleAddress = moduleAddress;
     }
+
     void getLimitSwitchState(){
         limitSwitchState = digitalRead(LIMIT_SWITCH_PIN);
     }
@@ -79,20 +80,6 @@ class BatterySlotModule
     }
 
 
-    void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
-        p_canMsg->can_dlc = 8;
-
-        for (int i=0; i<8; i++){
-        p_canMsg->data[i] = static_cast<uint8_t>(channelStates[i]);
-        }
-        p_canMsg->can_id = 
-        canUtils::createCanMsgCanId(canUtils::MEDIUM, 
-                                    canUtils::net2rpy_STATES_INFO_OF_EIGHT_CHANNEL_RELAY_MODULE, 
-                                    canUtils::CONTROL_CENTER,
-                                    moduleAddress);
-
-        canNetwork.sendMessage(p_canMsg);
-    }
     void net2rpy_relayBatteryStates(MCP2515& canNetwork0, MCP2515& canNetwork1, struct can_frame* p_canMsg){
 
         if(canUtils::readCanMsg(canNetwork0, p_canMsg) == MCP2515::ERROR_OK){
@@ -145,6 +132,23 @@ class BatterySlotModule
 
             canNetwork1.sendMessage(p_canMsg);
         }
+    }
+    void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
+        p_canMsg->can_dlc = 8;
+
+        p_canMsg->data[0] = (uint8_t)limitSwitchState;
+        p_canMsg->data[1] = (uint8_t)ledStripState;
+        p_canMsg->data[2] = (uint8_t)solenoidsStates[0];
+        p_canMsg->data[3] = (uint8_t)solenoidsStates[1];
+        p_canMsg->data[4] = (uint8_t)solenoidsStates[2];
+
+        p_canMsg->can_id = 
+        canUtils::createCanMsgCanId(canUtils::MEDIUM_HIGH, 
+                                    canUtils::net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE, 
+                                    canUtils::CONTROL_CENTER,
+                                    moduleAddress);
+
+        canNetwork.sendMessage(p_canMsg);
     }
   
 
