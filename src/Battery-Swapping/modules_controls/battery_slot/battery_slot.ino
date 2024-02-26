@@ -135,7 +135,6 @@ class BatterySlotModule
     }
     void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
         p_canMsg->can_dlc = 8;
-
         p_canMsg->data[0] = (uint8_t)limitSwitchState;
         p_canMsg->data[1] = (uint8_t)ledStripState;
         p_canMsg->data[2] = (uint8_t)solenoidsStates[0];
@@ -150,43 +149,92 @@ class BatterySlotModule
 
         canNetwork.sendMessage(p_canMsg);
     }
+
+    void rpy2net_readAndExecuteCommands(MCP2515& canNetwork, struct can_frame* p_canMsg){
+        if (canUtils::readCanMsg(canNetwork, p_canMsg, moduleAddress, canUtils::CONTROL_CENTER) == MCP2515::ERROR_OK){
+
+            canUtils::ACTIVITY_CODE activityCode = 
+            canUtils::getActivityCodeFromCanMsgCanId(p_canMsg->can_id);
+
+            switch (activityCode) {
+                case canUtils::rpy2net_SET_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE:
+                rpy2net_setSolenoidState(p_canMsg->data);
+                break;
+                case canUtils::rpy2net_SET_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE:
+                rpy2net_setSolenoidsStates(p_canMsg->data);
+                break;
+                case canUtils::rpy2net_FLIP_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE:
+                rpy2net_flipSolenoidState(p_canMsg->data);
+                break;
+                case canUtils::rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE:
+                rpy2net_flipChannelsStates(p_canMsg->data);
+                break;
+                case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
+                rpy2net_flipSolenoidsStates(p_canMsg->data);
+                break;
+                case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
+                rpy2net_setLedStripState(p_canMsg->data);
+                break;
+            }
+        }
+    }
+    void rpy2net_setSolenoidState(uint8_t canData[8]){
+        SOLENOID_NAME name = static_cast<SOLENOID_NAME>(canData[0]);
+        bool state = (bool)canData[1]
+        setSolenoidState(name, state);
+    }
+    void rpy2net_setSolenoidsStates(uint8_t canData[8]){
+        bool states[3];
+        states[0] = (bool)canData[0];
+        states[1] = (bool)canData[1];
+        states[2] = (bool)canData[2];
+        setSolenoidsStates(states);
+    }
+    void rpy2net_flipSolenoidState(uint8_t canData[8]){
+        SOLENOID_NAME name = static_cast<SOLENOID_NAME>(canData[0]);
+        flipSolenoidState(name);
+    }
+    void rpy2net_flipSolenoidsStates(uint8_t canData[8]){
+        bool flipLogic[3];
+        flipLogic[0] = (bool)canData[0];
+        flipLogic[1] = (bool)canData[1];
+        flipLogic[2] = (bool)canData[2];
+        flpChannelStates(flipLogic);
+    }
+    void rpy2net_setLedStripState(uint8_t canData[8]){
+        setLedStripState(static_cast<SOLENOID_NAME>(canData[0]));
+    }
+ 
   
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 };
+
+
+
+
+// -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
+BatterySlotModule batterySlotModule;
+
+
+void setup(){
+  
+  // Eight-channel relay module standard set-up.
+  batterySlotModule.stdSetUp();
+
+  // CAN Network standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetworkGlobal)
+
+}
+
+void loop(){
+
+    // Send battery states.
+    batterySlotModule.net2rpy_relayBatteryStates(canNetworkBattery, canNetworkGlobal, &canMsg_battery);
+
+    // Send peripherals states.
+    batterySlotModule.net2rpy_sendPeripheralsStates(canNetworkGlobal, &canMsg_net2rpy);
+
+    // Receive orders and execute them.
+    batterySlotModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);
+
+}
