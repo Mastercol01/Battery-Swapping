@@ -6,7 +6,7 @@ struct can_frame canMsg_net2rpy = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0
 MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
 
-// (2) DEFINITION OF EIGHT-CHANNEL RELAY MODULE CLASS-
+// (2) DEFINITION OF EIGHT-CHANNEL RELAY MODULE CLASS
 class EightChannelRelayModule
 {
   public:
@@ -24,7 +24,7 @@ class EightChannelRelayModule
   };
 
   // (2.2) DEFINITION OF VARIABLES
-  bool channelStates[8]; // OFF = 0, ON = 1.
+  bool channelsStates[8]; // OFF = 0, ON = 1.
   const int CHANNEL_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
   const canUtils::MODULE_ADDRESS moduleAddress = canUtils::EIGHT_CHANNEL_RELAY;
   
@@ -32,12 +32,12 @@ class EightChannelRelayModule
   // (2.3) DEFINITION OF METHODS
 
   // (2.3.1) Constructor Method
-  void EightChannelRelayModule(){}
+  EightChannelRelayModule(){}
 
   // (2.3.2) Internal Methods
   void setChannelState(CHANNEL_NAME name, bool state){
         digitalWrite(CHANNEL_PINS[name], state);
-        channelStates[name] = state;    
+        channelsStates[name] = state;    
   }
   void setChannelsStates(bool states[8]){
     for (int i=0; i<8; i++){
@@ -45,16 +45,17 @@ class EightChannelRelayModule
     }
   }
   void flipChannelState(CHANNEL_NAME name){
-    setChannelState(name, !channelStates[name]);
+    setChannelState(name, !channelsStates[name]);
   }
   void flipChannelsStates(bool flipLogic[8]){
     for (int i=0; i<8; i++){
-      if (flipLogic[i]){fipChannelState(static_cast<CHANNEL_NAME>(i));}
+      if (flipLogic[i]){flipChannelState(static_cast<CHANNEL_NAME>(i));}
     }
   }
   void stdSetUp(){
     for(int i; i<8; i++){pinMode(CHANNEL_PINS[i], OUTPUT);}
-    setChannelsStates({0, 0, 0, 0, 0, 0, 0, 0});
+    bool initChannelsStates[8] = {0,0,0,0,0,0,0,0};
+    setChannelsStates(initChannelsStates);
   }
 
   // (2.3.3) Net2Rpy Methods
@@ -62,10 +63,10 @@ class EightChannelRelayModule
     p_canMsg->can_dlc = 8;
 
     for (int i=0; i<8; i++){
-      p_canMsg->data[i] = (uint8_t)channelStates[i];
+      p_canMsg->data[i] = (uint8_t)channelsStates[i];
     }
     p_canMsg->can_id = 
-    canUtils::createCanMsgCanId(canUtils::MEDIUM_HIGH, 
+    canUtils::createCanMsgCanId(canUtils::MEDIUM, 
                                 canUtils::net2rpy_STATES_INFO_OF_EIGHT_CHANNEL_RELAY_MODULE, 
                                 canUtils::CONTROL_CENTER,
                                 moduleAddress);
@@ -108,12 +109,12 @@ class EightChannelRelayModule
   }
   void rpy2net_flipChannelState(uint8_t canData[8]){
     CHANNEL_NAME name = static_cast<CHANNEL_NAME>(canData[0]);
-    fipChannelState(name);
+    flipChannelState(name);
   }
   void rpy2net_flipChannelsStates(uint8_t canData[8]){
     bool flipLogic[8];
     for (int i=0; i<8; i++){flipLogic[i] = (bool)canData[i];}
-    flpChannelStates(flipLogic);
+    flipChannelsStates(flipLogic);
   }
 
 };
@@ -129,7 +130,7 @@ void setup(){
   eightChannelRelayModule.stdSetUp();
 
   // CAN Network standard set-up.
-  canUtils::stdCanNetworkSetUp(canNetworkGlobal)
+  canUtils::stdCanNetworkSetUp(canNetworkGlobal);
 
 }
 

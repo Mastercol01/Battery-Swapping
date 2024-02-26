@@ -33,8 +33,9 @@ can_frame canStr2canMsg(String canStr){
   String canData;
   int commaStrIndex;
   int hyphenStrIndex;
-  struct can_frame canMsg = {.can_dlc = 8};
+  struct can_frame canMsg;
 
+  canMsg.can_dlc = 8;
   hyphenStrIndex = canStr.indexOf("-");
   canData = canStr.substring(hyphenStrIndex+1);
   canMsg.can_id = uint32_t(canStr.substring(0, hyphenStrIndex).toInt());
@@ -67,7 +68,7 @@ void setup(){
   Serial.begin(115200); // Initialize Serial comunication.
 
   // CAN Network standard set-up.
-  canUtils::stdCanNetworkSetUp(canNetworkGlobal)
+  canUtils::stdCanNetworkSetUp(canNetworkGlobal);
 
 }
 

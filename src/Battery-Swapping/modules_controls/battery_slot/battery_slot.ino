@@ -30,7 +30,7 @@ class BatterySlotModule
     enum LED_STRIP_STATE {OFF, RED, GREEN, BLUE, PURPLE};
 
     const uint8_t LIMIT_SWITCH_PIN = 14;
-    const uint8_t SOLENOIDS_PINS = {15, 6, 3};
+    const uint8_t SOLENOIDS_PINS[3] = {15, 6, 3};
 
     bool limitSwitchState;                    // UN-PRESSED = 0, PRESSED = 1
     bool solenoidsStates[3];                  // {(BMS_OFF = 0, BMS_ON = 1), (DOOR_LOCKED = 0, DOOR_UNLOCKED = 1), (BATTERY_LOCKED = 0, BATTERY_UNLOCKED = 1)}
@@ -38,7 +38,7 @@ class BatterySlotModule
     canUtils::MODULE_ADDRESS moduleAddress;
 
  
-    void BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress){
+    BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress){
         this->moduleAddress = moduleAddress;
     }
 
@@ -59,7 +59,7 @@ class BatterySlotModule
     }
     void flipSolenoidsStates(bool flipLogic[3]){
         for (int i=0; i<3; i++){
-            if (flipLogic[i]){flipSolenoidState(static_cast<SOLENOID_NAME>(i))}
+            if (flipLogic[i]){flipSolenoidState(static_cast<SOLENOID_NAME>(i));}
         }
     }
     void setLedStripState(LED_STRIP_STATE state){
@@ -72,11 +72,13 @@ class BatterySlotModule
     void stdSetUp(){
         pinMode(LIMIT_SWITCH_PIN, INPUT);
         pinMode(LED_STRIP_PIN, OUTPUT);
-        for(int i=0; i<3; i++){
-            pinMode(SOLENOIDS_PINS[i], OUTPUT);
-        }
+        pinMode(SOLENOIDS_PINS[0], OUTPUT);
+        pinMode(SOLENOIDS_PINS[1], OUTPUT);
+        pinMode(SOLENOIDS_PINS[2], OUTPUT);
+
+        getLimitSwitchState();
         setLedStripState(OFF);
-        setSolenoidsStates({1, 0, 0});
+        setSolenoidsStates((1, 0, 0));
     }
 
 
@@ -134,6 +136,7 @@ class BatterySlotModule
         }
     }
     void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
+        getLimitSwitchState();
         p_canMsg->can_dlc = 8;
         p_canMsg->data[0] = (uint8_t)limitSwitchState;
         p_canMsg->data[1] = (uint8_t)ledStripState;
@@ -167,9 +170,6 @@ class BatterySlotModule
                 rpy2net_flipSolenoidState(p_canMsg->data);
                 break;
                 case canUtils::rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE:
-                rpy2net_flipChannelsStates(p_canMsg->data);
-                break;
-                case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
                 rpy2net_flipSolenoidsStates(p_canMsg->data);
                 break;
                 case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
@@ -180,7 +180,7 @@ class BatterySlotModule
     }
     void rpy2net_setSolenoidState(uint8_t canData[8]){
         SOLENOID_NAME name = static_cast<SOLENOID_NAME>(canData[0]);
-        bool state = (bool)canData[1]
+        bool state = (bool)canData[1];
         setSolenoidState(name, state);
     }
     void rpy2net_setSolenoidsStates(uint8_t canData[8]){
@@ -199,10 +199,11 @@ class BatterySlotModule
         flipLogic[0] = (bool)canData[0];
         flipLogic[1] = (bool)canData[1];
         flipLogic[2] = (bool)canData[2];
-        flpChannelStates(flipLogic);
+        flipSolenoidsStates(flipLogic);
     }
     void rpy2net_setLedStripState(uint8_t canData[8]){
-        setLedStripState(static_cast<SOLENOID_NAME>(canData[0]));
+        LED_STRIP_STATE state = static_cast<LED_STRIP_STATE>(canData[0]);
+        setLedStripState(state);
     }
  
   
@@ -213,7 +214,7 @@ class BatterySlotModule
 
 
 // -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
-BatterySlotModule batterySlotModule;
+BatterySlotModule batterySlotModule(canUtils::SLOT1);
 
 
 void setup(){
@@ -221,8 +222,11 @@ void setup(){
   // Eight-channel relay module standard set-up.
   batterySlotModule.stdSetUp();
 
-  // CAN Network standard set-up.
-  canUtils::stdCanNetworkSetUp(canNetworkGlobal)
+  // Global CAN Network standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetworkGlobal);
+
+  // Battery CAN Network standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetworkBattery);
 
 }
 
