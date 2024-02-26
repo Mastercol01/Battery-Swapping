@@ -1,16 +1,16 @@
 #include <mcp2515.h> 
 #include <CanUtils.h>
 
-// -DEFINITION OF CAN-BUS VARIABLES-
+// (1) DEFINITION OF CAN-BUS VARIABLES
 struct can_frame canMsg_net2rpy = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}};
 MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
 
-// -DEFINITION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
+// (2) DEFINITION OF EIGHT-CHANNEL RELAY MODULE CLASS-
 class EightChannelRelayModule
 {
   public:
-  // (1) DEFINITION OF ENUMERATIONS
+  // (2.1) DEFINITION OF ENUMERATIONS
   enum CHANNEL_NAME 
   {
     CHANNEL0,
@@ -23,18 +23,18 @@ class EightChannelRelayModule
     CHANNEL7,    
   };
 
-  // (2) DEFINITION OF VARIABLES
+  // (2.2) DEFINITION OF VARIABLES
   bool channelStates[8]; // OFF = 0, ON = 1.
   const int CHANNEL_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
   const canUtils::MODULE_ADDRESS moduleAddress = canUtils::EIGHT_CHANNEL_RELAY;
   
 
-  // (3) DEFINITION OF METHODS
+  // (2.3) DEFINITION OF METHODS
 
-  // (3.1) Constructor Method
+  // (2.3.1) Constructor Method
   void EightChannelRelayModule(){}
 
-  // (3.2) Internal Methods
+  // (2.3.2) Internal Methods
   void setChannelState(CHANNEL_NAME name, bool state){
         digitalWrite(CHANNEL_PINS[name], state);
         channelStates[name] = state;    
@@ -57,7 +57,7 @@ class EightChannelRelayModule
     setChannelsStates({0, 0, 0, 0, 0, 0, 0, 0});
   }
 
-  // (3.3) Net2Rpy Methods
+  // (2.3.3) Net2Rpy Methods
   void net2rpy_sendChannelsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
     p_canMsg->can_dlc = 8;
 
@@ -73,7 +73,7 @@ class EightChannelRelayModule
     canNetwork.sendMessage(p_canMsg);
   }
 
-  // (3.4) Rpy2Net Methods
+  // (2.3.4) Rpy2Net Methods
   void rpy2net_readAndExecuteCommands(MCP2515& canNetwork, struct can_frame* p_canMsg){
     if (canUtils::readCanMsg(canNetwork, p_canMsg, moduleAddress, canUtils::CONTROL_CENTER) == MCP2515::ERROR_OK){
 
@@ -119,7 +119,7 @@ class EightChannelRelayModule
 };
 
 
-// -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
+// (3) NTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
 EightChannelRelayModule eightChannelRelayModule;
 
 
@@ -135,7 +135,7 @@ void setup(){
 
 void loop(){
 
-  // Send module states.
+  // Send channels states.
   eightChannelRelayModule.net2rpy_sendChannelsStates(canNetworkGlobal, &canMsg_net2rpy);
 
   // Receive orders and execute them.
