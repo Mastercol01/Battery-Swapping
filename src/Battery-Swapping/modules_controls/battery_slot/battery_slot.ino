@@ -85,15 +85,15 @@ class BatterySlotModule
         if(canUtils::readCanMsg(canNetwork0, p_canMsg) == MCP2515::ERROR_OK){
 
             canUtils::ACTIVITY_CODE activityCode;
-            canUtils::PRIORITY_LEVEL priorityLevel = canUtils::MEDIUM_LOW;
+            canUtils::PRIORITY_LEVEL priorityLevel = canUtils::LOW_;
             
             switch (p_canMsg->can_id){
                 case 2550245121:
-                    priorityLevel = canUtils::HIGH_;
+                    priorityLevel = canUtils::MEDIUM_HIGH;
                     activityCode  = canUtils::net2rpy_BATTERY_DATA_0;
                     break;
                 case 2550310657:
-                    priorityLevel = canUtils::MEDIUM;
+                    priorityLevel = canUtils::MEDIUM_LOW;
                     activityCode = canUtils::net2rpy_BATTERY_DATA_1;
                     break;
                 case 2550376193:
