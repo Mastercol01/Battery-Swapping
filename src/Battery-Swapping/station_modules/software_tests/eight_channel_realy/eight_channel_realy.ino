@@ -143,6 +143,11 @@ class EightChannelRelayModule_SoftwareTest{
             canNetworkGlobal.sendMessage(&canMsg);
 
         }
+
+        if(!ERROR_HAPPENED){
+          Serial.println();
+          Serial.println("PROCESS DONE!");
+        }
         
     }
 
