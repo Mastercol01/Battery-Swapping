@@ -117,6 +117,20 @@ class EightChannelRelayModule
     flipChannelsStates(flipLogic);
   }
 
+  // (2.3.5) Debugging Methods
+  void serialPrintChannelsStates(){
+    Serial.print("--------");
+    Serial.print("CHANNELS STATES");
+    Serial.print("--------"); Serial.println();
+
+    for (int i=0; i<8; i++){
+      Serial.print("CHANNEL");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(channelsStates[i]);
+    }
+  }
+
 };
 
 
@@ -125,7 +139,8 @@ EightChannelRelayModule eightChannelRelayModule;
 
 
 void setup(){
-  
+  Serial.begin(9600);
+
   // Eight-channel relay module standard set-up.
   eightChannelRelayModule.stdSetUp();
 
@@ -141,6 +156,9 @@ void loop(){
 
   // Receive orders and execute them.
   eightChannelRelayModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);
+   
+  // Print Channels' States for debugging.
+  // serialPrintChannelsStates
 
 }
 
