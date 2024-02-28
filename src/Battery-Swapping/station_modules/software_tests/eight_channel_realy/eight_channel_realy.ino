@@ -22,20 +22,6 @@ class EightChannelRelayModule_SoftwareTest{
 
     EightChannelRelayModule_SoftwareTest(){}
 
-
-    void serialPrintChannelsStates(){
-        Serial.print("--------");
-        Serial.print("CHANNELS STATES");
-        Serial.print("--------"); Serial.println();
-
-        for (int i=0; i<8; i++){
-        Serial.print("CHANNEL");
-        Serial.print(i);
-        Serial.print(": ");
-        Serial.println(channelsStates[i]);
-        }
-    }
-
     void Menu(MCP2515& canNetwork, struct can_frame* p_canMsg){
 
         int commandOptionChoice;
@@ -111,6 +97,19 @@ class EightChannelRelayModule_SoftwareTest{
           Serial.println("PROCESS DONE!");
         }
         
+    }
+
+    void serialPrintChannelsStates(){
+        Serial.print("--------");
+        Serial.print("CHANNELS STATES");
+        Serial.print("--------"); Serial.println();
+
+        for (int i=0; i<8; i++){
+        Serial.print("CHANNEL");
+        Serial.print(i);
+        Serial.print(": ");
+        Serial.println(channelsStates[i]);
+        }
     }
     void readAndUpdateChannelsStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 2500){
 
