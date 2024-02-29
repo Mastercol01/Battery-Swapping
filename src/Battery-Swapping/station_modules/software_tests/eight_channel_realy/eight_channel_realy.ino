@@ -225,40 +225,6 @@ class EightChannelRelayModule_SoftwareTest{
   
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 };
 
 
