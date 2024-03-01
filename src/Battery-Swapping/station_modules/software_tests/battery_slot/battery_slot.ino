@@ -17,7 +17,7 @@ class BatterySlotModule_SoftwareTest
 
   struct MenuHelperStates {
     bool ERROR_HAPPENED = false;
-    uint8_t canId[8] = {0,0,0,0,0,0,0,0};
+    uint8_t canData[8] = {0,0,0,0,0,0,0,0};
     canUtils::ACTIVITY_CODE activityCode;
   };
   
@@ -98,13 +98,13 @@ class BatterySlotModule_SoftwareTest
         if((3 <= commandOptionChoice) && (commandOptionChoice <= 7) && !menuHelperStates.ERROR_HAPPENED){
 
             canMsg.can_dlc = 8;
-            for(int i=0; i<8; i++){canMsg.data[i] = menuHelperStates.canId[i];}
+            for(int i=0; i<8; i++){canMsg.data[i] = menuHelperStates.canData[i];}
 
             canMsg.can_id =
-            createCanMsgCanId(canUtils::HIGH_,
-                              menuHelperStates.activityCode,
-                              moduleAddressToTest,
-                              moduleAddress);
+            canUtils::createCanMsgCanId(canUtils::HIGH_,
+                                          menuHelperStates.activityCode,
+                                          moduleAddressToTest,
+                                          moduleAddress);
 
             canNetwork.sendMessage(p_canMsg);
         }
@@ -126,7 +126,7 @@ class BatterySlotModule_SoftwareTest
       Serial.println();
     }
   }
-  void readAndUpdateBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 12000){
+  void readAndUpdateBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 3000){
     Serial.print(F("---"));
     Serial.print(F("BATTERY STATES OF SLOT")); Serial.print(moduleAddressToTest);
     Serial.print(F("---")); Serial.println();
@@ -193,8 +193,8 @@ class BatterySlotModule_SoftwareTest
         Serial.print(F("PERIPHERALS STATES OF SLOT")); Serial.println(moduleAddressToTest);
         Serial.print(F("---")); Serial.println();
 
-        Serial.print("LIMIT SWITCH: "); Serial.println(peripheralsStates[0]);
-        Serial.print("LED STRIP: ");
+        Serial.print(F("LIMIT SWITCH: ")); Serial.println(peripheralsStates[0]);
+        Serial.print(F("LED STRIP: "));
 
         String ledStripState;
         switch (peripheralsStates[1]) {
@@ -206,22 +206,23 @@ class BatterySlotModule_SoftwareTest
         }
 
         Serial.println(ledStripState);
-        Serial.print(F("BMS SOLENOID: "));          Serial.println(peripheralsStates[2]);
-        Serial.print(F("DOOR_LOCK SOLENOID: "));    Serial.println(peripheralsStates[3]);
-        Serial.print(F("BATTERY_LOCK SOLENOID: ")); Serial.println(peripheralsStates[4]);
+        Serial.print(F("BMS SOLENOID: "));              Serial.println(peripheralsStates[2]);
+        Serial.print(F("DOOR_LOCK SOLENOID: "));        Serial.println(peripheralsStates[3]);
+        Serial.print(F("BATTERY_LOCK SOLENOID: "));     Serial.println(peripheralsStates[4]);
+        Serial.print(F("BATTERY HAS CAN BUS ERROR: ")); Serial.println(peripheralsStates[5]);
     }
-    void readAndUpdatePeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 2500){
+    void readAndUpdatePeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 3000){
 
         uint32_t initTime = millis();
         while (millis() - initTime <= executionTime){
-            if (canUtils::readCanMsg(canNetwork, p_canMsg, moduleAddress, canUtils::EIGHT_CHANNEL_RELAY) == MCP2515::ERROR_OK){
+            if (canUtils::readCanMsg(canNetwork, p_canMsg, moduleAddress, moduleAddressToTest) == MCP2515::ERROR_OK){
 
               canUtils::ACTIVITY_CODE activityCode = 
               canUtils::getActivityCodeFromCanMsgCanId(p_canMsg->can_id);        
 
               switch (activityCode) {
               case canUtils::net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE:
-                  for (int i=0; i<8; i++){peripheralsStates[i] = p_canMsg->data[i];}
+                  for (int i=0; i<6; i++){peripheralsStates[i] = p_canMsg->data[i];}
                   serialPrintPeripheralsStates();
                   break;    
               }
@@ -234,20 +235,21 @@ class BatterySlotModule_SoftwareTest
       while (!Serial.available()){}
       uint8_t solenoidId = Serial.readStringUntil("\n").toInt();
 
-      if      (solenoidId == 0){helperStates.canId[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));}
-      else if (solenoidId == 1){helperStates.canId[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));}
-      else if (solenoidId == 2){helperStates.canId[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)"));}
-      else {Serial.println("VALUE_ERROR!"); helperStates.ERROR_HAPPENED = true;}
-
+      switch (solenoidId) {
+        case 0: helperStates.canData[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));          break;
+        case 1: helperStates.canData[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));    break;
+        case 2: helperStates.canData[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)")); break;
+        default: Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;
+      }
     }
     void setSolenoidState_part2(struct MenuHelperStates& helperStates){
 
       Serial.print(F("Enter the solenoids's state (0 or 1): "));
       while (!Serial.available()){}
-      helperStates.canId[1] = Serial.readStringUntil("\n").toInt();
+      helperStates.canData[1] = Serial.readStringUntil("\n").toInt();
 
-      if (0<=helperStates.canId[1] && helperStates.canId[1]<=1){
-        Serial.println(helperStates.canId[1]);
+      if (0<=helperStates.canData[1] && helperStates.canData[1]<=1){
+        Serial.println(helperStates.canData[1]);
       } else {
         Serial.println(F("VALUE_ERROR!")); 
         helperStates.ERROR_HAPPENED = true;
@@ -261,10 +263,10 @@ class BatterySlotModule_SoftwareTest
           Serial.print(solenoidsNames[i]);
           Serial.print(": ");
           while (!Serial.available()){}
-          helperStates.canId[i] = Serial.readStringUntil("\n").toInt();
+          helperStates.canData[i] = Serial.readStringUntil("\n").toInt();
 
-          if (0<=helperStates.canId[i] && helperStates.canId[i]<=1){
-            Serial.println(helperStates.canId[i]);
+          if (0<=helperStates.canData[i] && helperStates.canData[i]<=1){
+            Serial.println(helperStates.canData[i]);
           } else {
             Serial.println(F("VALUE_ERROR!")); 
             helperStates.ERROR_HAPPENED=true; 
@@ -278,11 +280,12 @@ class BatterySlotModule_SoftwareTest
       while (!Serial.available()){}
       uint8_t solenoidId = Serial.readStringUntil("\n").toInt();
 
-      if      (solenoidId == 0){helperStates.canId[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));}
-      else if (solenoidId == 1){helperStates.canId[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));}
-      else if (solenoidId == 2){helperStates.canId[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)"));}
-      else {Serial.println("VALUE_ERROR!"); helperStates.ERROR_HAPPENED = true;}
-
+      switch (solenoidId) {
+        case 0: helperStates.canData[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));          break;
+        case 1: helperStates.canData[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));    break;
+        case 2: helperStates.canData[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)")); break;
+        default: Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;
+      }
     }
     void flipSolenoidsStates(struct MenuHelperStates& helperStates){
 
@@ -291,10 +294,10 @@ class BatterySlotModule_SoftwareTest
           Serial.print(solenoidsNames[i]);
           Serial.print(F(": "));
           while (!Serial.available()){}
-          helperStates.canId[i] = Serial.readStringUntil("\n").toInt();
+          helperStates.canData[i] = Serial.readStringUntil("\n").toInt();
 
-          if (0<=helperStates.canId[i] && helperStates.canId[i]<=1){
-            Serial.println(helperStates.canId[i]);
+          if (0<=helperStates.canData[i] && helperStates.canData[i]<=1){
+            Serial.println(helperStates.canData[i]);
           } else { 
             Serial.println(F("VALUE_ERROR!"));
             helperStates.ERROR_HAPPENED=true; 
@@ -308,13 +311,14 @@ class BatterySlotModule_SoftwareTest
       while (!Serial.available()){}
       uint8_t ledStripState = Serial.readStringUntil("\n").toInt();
 
-      if      (ledStripState == 0){helperStates.canId[0] = 0; Serial.print(ledStripState); Serial.println(F(" (OFF)"));}
-      else if (ledStripState == 1){helperStates.canId[0] = 1; Serial.print(ledStripState); Serial.println(F(" (RED)"));}
-      else if (ledStripState == 2){helperStates.canId[0] = 2; Serial.print(ledStripState); Serial.println(F(" (GREEN)"));}
-      else if (ledStripState == 3){helperStates.canId[0] = 3; Serial.print(ledStripState); Serial.println(F(" (BLUE)"));}
-      else if (ledStripState == 4){helperStates.canId[0] = 4; Serial.print(ledStripState); Serial.println(F(" (PURPLE)"));}
-      else {Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;}
-
+      switch (ledStripState) {
+        case 0: helperStates.canData[0] = 0; Serial.print(ledStripState); Serial.println(F(" (OFF)"));    break;
+        case 1: helperStates.canData[0] = 1; Serial.print(ledStripState); Serial.println(F(" (RED)"));    break;
+        case 2: helperStates.canData[0] = 2; Serial.print(ledStripState); Serial.println(F(" (GREEN)"));  break;
+        case 3: helperStates.canData[0] = 3; Serial.print(ledStripState); Serial.println(F(" (BLUE)"));   break;
+        case 4: helperStates.canData[0] = 4; Serial.print(ledStripState); Serial.println(F(" (PURPLE)")); break;
+        default: Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;
+      }
     }
     void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 5000){
 
@@ -325,8 +329,9 @@ class BatterySlotModule_SoftwareTest
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       moduleAddressToTest);
-      }
 
+      //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
+      }
     }
 
 };
@@ -339,7 +344,7 @@ BatterySlotModule_SoftwareTest slots[8] =
   BatterySlotModule_SoftwareTest(canUtils::SLOT5),
   BatterySlotModule_SoftwareTest(canUtils::SLOT6),
   BatterySlotModule_SoftwareTest(canUtils::SLOT7),
-  BatterySlotModule_SoftwareTest(canUtils::SLOT8),
+  BatterySlotModule_SoftwareTest(canUtils::SLOT8)
 };
 
 void superMenu(BatterySlotModule_SoftwareTest arr[8], MCP2515& canNetwork, struct can_frame* p_canMsg){

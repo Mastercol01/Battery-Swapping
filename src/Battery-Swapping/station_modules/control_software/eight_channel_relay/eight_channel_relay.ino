@@ -27,6 +27,9 @@ class EightChannelRelayModule
   bool channelsStates[8]; // OFF = 0, ON = 1.
   const int CHANNEL_PINS[8] = {A0, A1, A2, A3, A4, A5, 4, 5};
   const canUtils::MODULE_ADDRESS moduleAddress = canUtils::EIGHT_CHANNEL_RELAY;
+
+  uint32_t sendChannelsStatesTimer;
+  const uint32_t sendChannelsStatesTimeout = 50;
   
 
   // (2.3) DEFINITION OF METHODS
@@ -56,6 +59,7 @@ class EightChannelRelayModule
     for(int i; i<8; i++){pinMode(CHANNEL_PINS[i], OUTPUT);}
     bool initChannelsStates[8] = {0,0,0,0,0,0,0,0};
     setChannelsStates(initChannelsStates);
+    sendChannelsStatesTimer = millis();
   }
 
   // (2.3.3) Net2Rpy Methods
@@ -73,7 +77,12 @@ class EightChannelRelayModule
 
     canNetwork.sendMessage(p_canMsg);
   }
-
+  void net2rpy_sendChannelsStatesPeriodically(MCP2515& canNetwork, struct can_frame* p_canMsg){
+    if (millis() - sendChannelsStatesTimer > sendChannelsStatesTimeout){
+      net2rpy_sendChannelsStates(canNetwork, p_canMsg);
+      sendChannelsStatesTimer = millis();
+    }
+  }
   // (2.3.4) Rpy2Net Methods
   void rpy2net_readAndExecuteCommands(MCP2515& canNetwork, struct can_frame* p_canMsg){
     if (canUtils::readCanMsg(canNetwork, p_canMsg, moduleAddress, canUtils::CONTROL_CENTER) == MCP2515::ERROR_OK){
@@ -152,7 +161,7 @@ void setup(){
 void loop(){
 
   // Send channels states.
-  eightChannelRelayModule.net2rpy_sendChannelsStates(canNetworkGlobal, &canMsg_net2rpy);
+  eightChannelRelayModule.net2rpy_sendChannelsStatesPeriodically(canNetworkGlobal, &canMsg_net2rpy);
 
   // Receive orders and execute them.
   eightChannelRelayModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);

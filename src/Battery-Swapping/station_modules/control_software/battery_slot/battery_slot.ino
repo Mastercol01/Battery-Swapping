@@ -26,10 +26,11 @@ void setLedStripColor(uint8_t red, uint8_t green, uint8_t blue){
 class BatterySlotModule
 {
     public:
+    
     enum SOLENOID_NAME {BMS=0, DOOR_LOCK=1, BATTERY_LOCK=2};
     enum LED_STRIP_STATE {OFF=0, RED=1, GREEN=2, BLUE=3, PURPLE=4};
 
-    const uint8_t LIMIT_SWITCH_PIN = 14;
+    const uint8_t LIMIT_SWITCH_PIN = A0;
     const uint8_t SOLENOIDS_PINS[3] = {15, 6, 3};
 
     bool limitSwitchState;                    // UN-PRESSED = 0, PRESSED = 1
@@ -37,13 +38,42 @@ class BatterySlotModule
     LED_STRIP_STATE ledStripState;
     canUtils::MODULE_ADDRESS moduleAddress;
 
+    uint8_t batteryStates[11][8];
+    bool batteryCanBusErrorState = 0;          // NO-ERROR = 0, ERROR = 1
+    const canUtils::ACTIVITY_CODE net2rpy_batteryActivityCodes[11] =
+    {
+      canUtils::net2rpy_BATTERY_DATA_0,
+      canUtils::net2rpy_BATTERY_DATA_1,
+      canUtils::net2rpy_BATTERY_DATA_2,
+      canUtils::net2rpy_BATTERY_DATA_3,
+      canUtils::net2rpy_BATTERY_DATA_4,
+      canUtils::net2rpy_BATTERY_DATA_5,
+      canUtils::net2rpy_BATTERY_DATA_6,
+      canUtils::net2rpy_BATTERY_DATA_7,
+      canUtils::net2rpy_BATTERY_DATA_8,
+      canUtils::net2rpy_BATTERY_DATA_9,
+      canUtils::net2rpy_BATTERY_DATA_10
+    };
+    uint32_t relayBatteryStatesTimer;
+    uint32_t sendPeripheralsStatesTimer;
+    uint32_t batteryCanBusErrorStateTimer;
+    uint32_t relayBatteryStatesTimeout = 50;
+    uint32_t sendPeripheralsStatesTimeout = 50;
+    uint32_t batteryCanBusErrorStateTimeout = 12000;
+
+
  
     BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress){
-        this->moduleAddress = moduleAddress;
+      this->moduleAddress = moduleAddress;
+      for(int j=0; j<11; j++){
+        for(int i=0; i<8; i++){
+          batteryStates[j][i] = 0;
+        }
+      }
     }
 
     void getLimitSwitchState(){
-        limitSwitchState = digitalRead(LIMIT_SWITCH_PIN);
+        limitSwitchState = !digitalRead(LIMIT_SWITCH_PIN);
     }
     void setSolenoidState(SOLENOID_NAME name, bool state){
         digitalWrite(SOLENOIDS_PINS[name], state);
@@ -63,14 +93,17 @@ class BatterySlotModule
         }
     }
     void setLedStripState(LED_STRIP_STATE state){
-        if      (state == OFF)   {setLedStripColor(0,   0,   0);}
-        else if (state == RED)   {setLedStripColor(120, 0,   0);}
-        else if (state == GREEN) {setLedStripColor(0,   120, 0);}
-        else if (state == BLUE)  {setLedStripColor(0,   0,   120);}
-        else if (state == PURPLE){setLedStripColor(60,  0,   104);}
+      switch (state) {
+        case OFF:    setLedStripColor(0,   0,   0);   ledStripState = state; break;
+        case RED:    setLedStripColor(120, 0,   0);   ledStripState = state; break;
+        case GREEN:  setLedStripColor(0,   120, 0);   ledStripState = state; break;
+        case BLUE:   setLedStripColor(0,   0,   120); ledStripState = state; break;
+        case PURPLE: setLedStripColor(60,  0,   104); ledStripState = state; break;
+      }
+      
     }
     void stdSetUp(){
-        pinMode(LIMIT_SWITCH_PIN, INPUT);
+        pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
         pinMode(LED_STRIP_PIN, OUTPUT);
         pinMode(SOLENOIDS_PINS[0], OUTPUT);
         pinMode(SOLENOIDS_PINS[1], OUTPUT);
@@ -81,70 +114,85 @@ class BatterySlotModule
         setSolenoidState(BMS, 0);
         setSolenoidState(DOOR_LOCK, 0);
         setSolenoidState(BATTERY_LOCK, 0);
+        relayBatteryStatesTimer = millis();
+        sendPeripheralsStatesTimer = millis();
+        batteryCanBusErrorStateTimer = millis();
     }
 
+    void updateBatteryCanBusErrorState(){
+      if(!limitSwitchState || !solenoidsStates[0]){batteryCanBusErrorStateTimer = millis();}
+      if(millis() - batteryCanBusErrorStateTimer > batteryCanBusErrorStateTimeout){
+        batteryCanBusErrorState = 1;
+      }else{
+        batteryCanBusErrorState = 0;
+      }
+    }
+    void getBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
+      getLimitSwitchState();
 
-    void net2rpy_relayBatteryStates(MCP2515& canNetwork0, MCP2515& canNetwork1, struct can_frame* p_canMsg){
-
-        if(canUtils::readCanMsg(canNetwork0, p_canMsg) == MCP2515::ERROR_OK){
-
-            canUtils::ACTIVITY_CODE activityCode;
-            canUtils::PRIORITY_LEVEL priorityLevel = canUtils::LOW_;
-            
-            switch (p_canMsg->can_id){
-                case 2550245121:
-                    priorityLevel = canUtils::MEDIUM_HIGH;
-                    activityCode  = canUtils::net2rpy_BATTERY_DATA_0;
-                    break;
-                case 2550310657:
-                    priorityLevel = canUtils::MEDIUM_LOW;
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_1;
-                    break;
-                case 2550376193:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_2;
-                    break;
-                case 2550441729:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_3;
-                    break;
-                case 2550507265:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_4;
-                    break;
-                case 2550572801:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_5;
-                    break;
-                case 2550638337:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_6;
-                    break;
-                case 2550703873:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_7;
-                    break;
-                case 2550769409:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_8;
-                    break;
-                case 2550834945:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_9;
-                    break;
-                case 2550900481:
-                    activityCode = canUtils::net2rpy_BATTERY_DATA_10;
-                    break;
-            }
-            p_canMsg->can_id = 
-            canUtils::createCanMsgCanId(priorityLevel, 
-                                        activityCode, 
-                                        canUtils::CONTROL_CENTER, 
-                                        moduleAddress);
-
-            canNetwork1.sendMessage(p_canMsg);
+      if(limitSwitchState && solenoidsStates[0]){
+        if(canUtils::readCanMsg(canNetwork, p_canMsg) == MCP2515::ERROR_OK){
+          switch (p_canMsg->can_id){
+              case 2550245121: for(int i=0; i<8; i++){batteryStates[0][i]  = p_canMsg->data[i];} break;
+              case 2550310657: for(int i=0; i<8; i++){batteryStates[1][i]  = p_canMsg->data[i];} break;
+              case 2550376193: for(int i=0; i<8; i++){batteryStates[2][i]  = p_canMsg->data[i];} break;
+              case 2550441729: for(int i=0; i<8; i++){batteryStates[3][i]  = p_canMsg->data[i];} break;
+              case 2550507265: for(int i=0; i<8; i++){batteryStates[4][i]  = p_canMsg->data[i];} break;
+              case 2550572801: for(int i=0; i<8; i++){batteryStates[5][i]  = p_canMsg->data[i];} break;
+              case 2550638337: for(int i=0; i<8; i++){batteryStates[6][i]  = p_canMsg->data[i];} break;
+              case 2550703873: for(int i=0; i<8; i++){batteryStates[7][i]  = p_canMsg->data[i];} break;
+              case 2550769409: for(int i=0; i<8; i++){batteryStates[8][i]  = p_canMsg->data[i];} break;
+              case 2550834945: for(int i=0; i<8; i++){batteryStates[9][i]  = p_canMsg->data[i];} break;
+              case 2550900481: for(int i=0; i<8; i++){batteryStates[10][i] = p_canMsg->data[i];} break;
+          }
+          batteryCanBusErrorStateTimer = millis();
         }
+      }
+    }
+    void net2rpy_relayBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
+      getLimitSwitchState();
+
+      if(limitSwitchState && solenoidsStates[0]){
+        canUtils::PRIORITY_LEVEL priorityLevel;
+        canUtils::ACTIVITY_CODE activityCode;
+
+        for(int j=0; j<11; j++){
+          switch (j) {
+            case 0:  priorityLevel = canUtils::MEDIUM_HIGH; break;
+            case 1:  priorityLevel = canUtils::MEDIUM_LOW;  break;
+            default: priorityLevel = canUtils::LOW_;        break;
+          }
+          activityCode = net2rpy_batteryActivityCodes[j];
+
+          p_canMsg->can_dlc = 8;
+          for(int i=0; i<8; i++){p_canMsg->data[i] = batteryStates[j][i];}
+          
+          p_canMsg->can_id =
+          canUtils::createCanMsgCanId(priorityLevel,
+                                      activityCode,
+                                      canUtils::CONTROL_CENTER, 
+                                      moduleAddress);
+
+          canNetwork.sendMessage(p_canMsg);
+        }
+      } 
+    }
+    net2rpy_relayBatteryStatesPeriodically(MCP2515& canNetwork, struct can_frame* p_canMsg){
+      if(millis() - relayBatteryStatesTimer > relayBatteryStatesTimeout){
+        net2rpy_relayBatteryStates(canNetwork, p_canMsg);
+        relayBatteryStatesTimer = millis();
+      }
     }
     void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
-        getLimitSwitchState();
         p_canMsg->can_dlc = 8;
+        getLimitSwitchState();
         p_canMsg->data[0] = (uint8_t)limitSwitchState;
         p_canMsg->data[1] = (uint8_t)ledStripState;
         p_canMsg->data[2] = (uint8_t)solenoidsStates[0];
         p_canMsg->data[3] = (uint8_t)solenoidsStates[1];
         p_canMsg->data[4] = (uint8_t)solenoidsStates[2];
+        updateBatteryCanBusErrorState();
+        p_canMsg->data[5] = (uint8_t)batteryCanBusErrorState;
 
         p_canMsg->can_id = 
         canUtils::createCanMsgCanId(canUtils::MEDIUM_HIGH, 
@@ -153,6 +201,12 @@ class BatterySlotModule
                                     moduleAddress);
 
         canNetwork.sendMessage(p_canMsg);
+    }
+    void net2rpy_sendPeripheralsStatesPeriodically(MCP2515& canNetwork, struct can_frame* p_canMsg){
+      if(millis() - sendPeripheralsStatesTimer > sendPeripheralsStatesTimeout){
+        net2rpy_sendPeripheralsStates(canNetwork, p_canMsg);
+        sendPeripheralsStatesTimer = millis();
+      }
     }
 
     void rpy2net_readAndExecuteCommands(MCP2515& canNetwork, struct can_frame* p_canMsg){
@@ -234,11 +288,14 @@ void setup(){
 
 void loop(){
 
-    // Send battery states.
-    batterySlotModule.net2rpy_relayBatteryStates(canNetworkBattery, canNetworkGlobal, &canMsg_battery);
+    // Receive and store battery states.
+    batterySlotModule.getBatteryStates(canNetworkBattery, &canMsg_battery);
+
+    // Relay battery states every x amount of time.
+    batterySlotModule.net2rpy_relayBatteryStatesPeriodically(canNetworkGlobal, &canMsg_net2rpy);
 
     // Send peripherals states.
-    batterySlotModule.net2rpy_sendPeripheralsStates(canNetworkGlobal, &canMsg_net2rpy);
+    batterySlotModule.net2rpy_sendPeripheralsStatesPeriodically(canNetworkGlobal, &canMsg_net2rpy);
 
     // Receive orders and execute them.
     batterySlotModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);

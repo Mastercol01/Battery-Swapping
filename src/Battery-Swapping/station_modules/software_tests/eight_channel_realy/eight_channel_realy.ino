@@ -15,7 +15,7 @@ class EightChannelRelayModule_SoftwareTest{
 
     struct MenuHelperStates {
       bool ERROR_HAPPENED = false;
-      uint8_t canId[8] = {0,0,0,0,0,0,0,0};
+      uint8_t canData[8] = {0,0,0,0,0,0,0,0};
       canUtils::ACTIVITY_CODE activityCode;
     };
 
@@ -80,7 +80,7 @@ class EightChannelRelayModule_SoftwareTest{
         if((2 <= commandOptionChoice) && (commandOptionChoice <= 5) && !menuHelperStates.ERROR_HAPPENED){
 
             canMsg.can_dlc = 8;
-            for(int i=0; i<8; i++){canMsg.data[i] = menuHelperStates.canId[i];}
+            for(int i=0; i<8; i++){canMsg.data[i] = menuHelperStates.canData[i];}
 
             canMsg.can_id =
             createCanMsgCanId(canUtils::HIGH_,
@@ -111,7 +111,7 @@ class EightChannelRelayModule_SoftwareTest{
         Serial.println(channelsStates[i]);
         }
     }
-    void readAndUpdateChannelsStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 2500){
+    void readAndUpdateChannelsStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 3000){
 
         uint32_t initTime = millis();
 
@@ -134,10 +134,10 @@ class EightChannelRelayModule_SoftwareTest{
 
       Serial.print("Enter the channel's name (0 through 7) whose state you want to set: ");
       while (!Serial.available()){}
-      helperStates.canId[0] = Serial.readStringUntil("\n").toInt();
+      helperStates.canData[0] = Serial.readStringUntil("\n").toInt();
 
-      if (0<=helperStates.canId[0] && helperStates.canId[0]<=7){
-        Serial.println(helperStates.canId[0]);
+      if (0<=helperStates.canData[0] && helperStates.canData[0]<=7){
+        Serial.println(helperStates.canData[0]);
       } else {
         Serial.println("VALUE_ERROR!"); 
         helperStates.ERROR_HAPPENED = true; 
@@ -147,10 +147,10 @@ class EightChannelRelayModule_SoftwareTest{
 
       Serial.print("Enter the channel's state (0 or 1): ");
       while (!Serial.available()){}
-      helperStates.canId[1] = Serial.readStringUntil("\n").toInt();
+      helperStates.canData[1] = Serial.readStringUntil("\n").toInt();
 
-      if (0<=helperStates.canId[1] && helperStates.canId[1]<=1){
-        Serial.println(helperStates.canId[1]);
+      if (0<=helperStates.canData[1] && helperStates.canData[1]<=1){
+        Serial.println(helperStates.canData[1]);
       } else {
         Serial.println("VALUE_ERROR!"); 
         helperStates.ERROR_HAPPENED=true;
@@ -165,10 +165,10 @@ class EightChannelRelayModule_SoftwareTest{
           Serial.print(i);
           Serial.print(": ");
           while (!Serial.available()){}
-          helperStates.canId[i] = Serial.readStringUntil("\n").toInt();
+          helperStates.canData[i] = Serial.readStringUntil("\n").toInt();
 
-          if (0<=helperStates.canId[i] && helperStates.canId[i]<=1){
-            Serial.println(helperStates.canId[i]);
+          if (0<=helperStates.canData[i] && helperStates.canData[i]<=1){
+            Serial.println(helperStates.canData[i]);
           } else {
             Serial.println("VALUE_ERROR!"); 
             helperStates.ERROR_HAPPENED=true; 
@@ -180,10 +180,10 @@ class EightChannelRelayModule_SoftwareTest{
 
       Serial.print("Enter the channel's name (0 through 7) whose state you want to flip: ");
       while (!Serial.available()){}
-      helperStates.canId[0] = Serial.readStringUntil("\n").toInt();
+      helperStates.canData[0] = Serial.readStringUntil("\n").toInt();
 
-      if (0<=helperStates.canId[0] && helperStates.canId[0]<=7){
-        Serial.println(helperStates.canId[0]);
+      if (0<=helperStates.canData[0] && helperStates.canData[0]<=7){
+        Serial.println(helperStates.canData[0]);
       } else {
         Serial.println("VALUE_ERROR!"); 
         helperStates.ERROR_HAPPENED=true;
@@ -197,10 +197,10 @@ class EightChannelRelayModule_SoftwareTest{
           Serial.print(i);
           Serial.print(": ");
           while (!Serial.available()){}
-          helperStates.canId[i] = Serial.readStringUntil("\n").toInt();
+          helperStates.canData[i] = Serial.readStringUntil("\n").toInt();
 
-          if (0<=helperStates.canId[i] && helperStates.canId[i]<=1){
-            Serial.println(helperStates.canId[i]);
+          if (0<=helperStates.canData[i] && helperStates.canData[i]<=1){
+            Serial.println(helperStates.canData[i]);
           } else {
             Serial.println("VALUE_ERROR!");
             helperStates.ERROR_HAPPENED=true; 
@@ -208,7 +208,7 @@ class EightChannelRelayModule_SoftwareTest{
           }
       }   
     }
-    void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 2500){
+    void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 3000){
 
       uint32_t initTime = millis();
       while (millis() - initTime <= executionTime){
@@ -218,7 +218,8 @@ class EightChannelRelayModule_SoftwareTest{
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       canUtils::EIGHT_CHANNEL_RELAY);
-
+        
+        
         
                                     
         //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
