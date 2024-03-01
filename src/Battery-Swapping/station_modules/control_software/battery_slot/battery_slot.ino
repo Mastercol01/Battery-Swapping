@@ -26,8 +26,8 @@ void setLedStripColor(uint8_t red, uint8_t green, uint8_t blue){
 class BatterySlotModule
 {
     public:
-    enum SOLENOID_NAME {BMS, DOOR_LOCK, BATTERY_LOCK};
-    enum LED_STRIP_STATE {OFF, RED, GREEN, BLUE, PURPLE};
+    enum SOLENOID_NAME {BMS=0, DOOR_LOCK=1, BATTERY_LOCK=2};
+    enum LED_STRIP_STATE {OFF=0, RED=1, GREEN=2, BLUE=3, PURPLE=4};
 
     const uint8_t LIMIT_SWITCH_PIN = 14;
     const uint8_t SOLENOIDS_PINS[3] = {15, 6, 3};
@@ -78,7 +78,9 @@ class BatterySlotModule
 
         getLimitSwitchState();
         setLedStripState(OFF);
-        setSolenoidsStates((1, 0, 0));
+        setSolenoidState(BMS, 0);
+        setSolenoidState(DOOR_LOCK, 0);
+        setSolenoidState(BATTERY_LOCK, 0);
     }
 
 

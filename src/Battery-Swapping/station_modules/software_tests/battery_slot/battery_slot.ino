@@ -3,7 +3,7 @@
 
 // (1) DEFINITION OF CAN-BUS VARIABLES
 struct can_frame canMsg = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}};
-MCP2515 canNetworkGlobal(10); // CS pin of global CAN network is 9.
+MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
 
 class BatterySlotModule_SoftwareTest
@@ -37,7 +37,7 @@ class BatterySlotModule_SoftwareTest
         int commandOptionChoice;
         struct MenuHelperStates menuHelperStates;
 
-        Serial.println(F("---------------------------------------------------------"));
+        Serial.println();
         Serial.println(F("Please select one command option from the menu:"));
         Serial.println(F("1 - readAndUpdateBatteryStates"));
         Serial.println(F("2 - readAndUpdatePeripheralsStates"));
@@ -127,9 +127,9 @@ class BatterySlotModule_SoftwareTest
     }
   }
   void readAndUpdateBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 12000){
-    Serial.print(F("-----------------------"));
-    Serial.print(F("BATTERY STATES OF SLOT")); Serial.println(moduleAddressToTest);
-    Serial.print(F("-----------------------")); Serial.println();
+    Serial.print(F("---"));
+    Serial.print(F("BATTERY STATES OF SLOT")); Serial.print(moduleAddressToTest);
+    Serial.print(F("---")); Serial.println();
 
     uint32_t initTime = millis();
 
@@ -189,9 +189,9 @@ class BatterySlotModule_SoftwareTest
     }
   } 
   void serialPrintPeripheralsStates(){
-        Serial.print(F("---------------------------"));
+        Serial.print(F("---"));
         Serial.print(F("PERIPHERALS STATES OF SLOT")); Serial.println(moduleAddressToTest);
-        Serial.print(F("---------------------------")); Serial.println();
+        Serial.print(F("---")); Serial.println();
 
         Serial.print("LIMIT SWITCH: "); Serial.println(peripheralsStates[0]);
         Serial.print("LED STRIP: ");
@@ -230,13 +230,13 @@ class BatterySlotModule_SoftwareTest
     }
     void setSolenoidState_part1(struct MenuHelperStates& helperStates){
 
-      Serial.print(F("Enter the solenoids's name ('BMS', 'DOOR_LOCK' or 'BATTERY_LOCK') whose state you want to set: "));
+      Serial.print(F("Enter the solenoids's id [0 (BMS), 1 (DOOR_LOCK) or 2 (BATTERY_LOCK)] whose state you want to set: "));
       while (!Serial.available()){}
-      String solenoidName = Serial.readStringUntil("\n");
+      uint8_t solenoidId = Serial.readStringUntil("\n").toInt();
 
-      if      (solenoidName == "BMS")         {helperStates.canId[0] = 0; Serial.println(solenoidName);}
-      else if (solenoidName == "DOOR_LOCK")   {helperStates.canId[0] = 1; Serial.println(solenoidName);}
-      else if (solenoidName == "BATTERY_LOCK"){helperStates.canId[0] = 2; Serial.println(solenoidName);}
+      if      (solenoidId == 0){helperStates.canId[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));}
+      else if (solenoidId == 1){helperStates.canId[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));}
+      else if (solenoidId == 2){helperStates.canId[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)"));}
       else {Serial.println("VALUE_ERROR!"); helperStates.ERROR_HAPPENED = true;}
 
     }
@@ -274,14 +274,14 @@ class BatterySlotModule_SoftwareTest
     }
     void flipSolenoidState(struct MenuHelperStates& helperStates){
 
-      Serial.print(F("Enter the solenoids's name ('BMS', 'DOOR_LOCK' or 'BATTERY_LOCK') whose state you want to flip: "));
+      Serial.print(F("Enter the solenoids's id [0 (BMS), 1 (DOOR_LOCK) or 2 (BATTERY_LOCK)] whose state you want to flip: "));
       while (!Serial.available()){}
-      String solenoidName = Serial.readStringUntil("\n");
+      uint8_t solenoidId = Serial.readStringUntil("\n").toInt();
 
-      if      (solenoidName == "BMS")         {helperStates.canId[0] = 0; Serial.println(solenoidName);}
-      else if (solenoidName == "DOOR_LOCK")   {helperStates.canId[0] = 1; Serial.println(solenoidName);}
-      else if (solenoidName == "BATTERY_LOCK"){helperStates.canId[0] = 2; Serial.println(solenoidName);}
-      else {Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;}
+      if      (solenoidId == 0){helperStates.canId[0] = 0; Serial.print(solenoidId); Serial.println(F(" (BMS)"));}
+      else if (solenoidId == 1){helperStates.canId[0] = 1; Serial.print(solenoidId); Serial.println(F(" (DOOR_LOCK)"));}
+      else if (solenoidId == 2){helperStates.canId[0] = 2; Serial.print(solenoidId); Serial.println(F(" (BATTERY_LOCK)"));}
+      else {Serial.println("VALUE_ERROR!"); helperStates.ERROR_HAPPENED = true;}
 
     }
     void flipSolenoidsStates(struct MenuHelperStates& helperStates){
@@ -295,7 +295,7 @@ class BatterySlotModule_SoftwareTest
 
           if (0<=helperStates.canId[i] && helperStates.canId[i]<=1){
             Serial.println(helperStates.canId[i]);
-          } else {
+          } else { 
             Serial.println(F("VALUE_ERROR!"));
             helperStates.ERROR_HAPPENED=true; 
             return;
@@ -304,15 +304,15 @@ class BatterySlotModule_SoftwareTest
     }
     void setLedStripState(struct MenuHelperStates& helperStates){
 
-      Serial.print(F("Enter the state ('OFF', 'RED', 'GREEN', 'BLUE' or 'PURPLE') you want to set the LED strip to: "));
+      Serial.print(F("Enter the state [0 (OFF), 1 (RED), 2 (GREEN), 3 (BLUE) or 4 (PURPLE)] you want to set the LED strip to: "));
       while (!Serial.available()){}
-      String ledStripState = Serial.readStringUntil("\n");
+      uint8_t ledStripState = Serial.readStringUntil("\n").toInt();
 
-      if      (ledStripState == "OFF")    {helperStates.canId[0] = 0; Serial.println(ledStripState);}
-      else if (ledStripState == "RED")    {helperStates.canId[0] = 1; Serial.println(ledStripState);}
-      else if (ledStripState == "GREEN")  {helperStates.canId[0] = 2; Serial.println(ledStripState);}
-      else if (ledStripState == "BLUE")   {helperStates.canId[0] = 3; Serial.println(ledStripState);}
-      else if (ledStripState == "PURPLE") {helperStates.canId[0] = 4; Serial.println(ledStripState);}
+      if      (ledStripState == 0){helperStates.canId[0] = 0; Serial.print(ledStripState); Serial.println(F(" (OFF)"));}
+      else if (ledStripState == 1){helperStates.canId[0] = 1; Serial.print(ledStripState); Serial.println(F(" (RED)"));}
+      else if (ledStripState == 2){helperStates.canId[0] = 2; Serial.print(ledStripState); Serial.println(F(" (GREEN)"));}
+      else if (ledStripState == 3){helperStates.canId[0] = 3; Serial.print(ledStripState); Serial.println(F(" (BLUE)"));}
+      else if (ledStripState == 4){helperStates.canId[0] = 4; Serial.print(ledStripState); Serial.println(F(" (PURPLE)"));}
       else {Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;}
 
     }
@@ -345,7 +345,7 @@ BatterySlotModule_SoftwareTest slots[8] =
 void superMenu(BatterySlotModule_SoftwareTest arr[8], MCP2515& canNetwork, struct can_frame* p_canMsg){
 
   Serial.println(F("-----------------------------------------------------------------------------------------"));
-  Serial.println(F("WELCOME!: Please enter the id (1 through 8) of the battery slot that you wish to control: "));
+  Serial.print(F("WELCOME!: Please enter the id (1 through 8) of the battery slot that you wish to control: "));
   while (!Serial.available()){}
   int commandOptionChoice = Serial.readStringUntil("\n").toInt();
 

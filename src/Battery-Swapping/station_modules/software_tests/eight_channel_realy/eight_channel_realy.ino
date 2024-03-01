@@ -3,7 +3,7 @@
 
 // (1) DEFINITION OF CAN-BUS VARIABLES
 struct can_frame canMsg = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}};
-MCP2515 canNetworkGlobal(10); // CS pin of global CAN network is 9.
+MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
 
 
@@ -212,11 +212,16 @@ class EightChannelRelayModule_SoftwareTest{
 
       uint32_t initTime = millis();
       while (millis() - initTime <= executionTime){
+        
         canUtils::visualizeCanNetwork(canNetwork, p_canMsg,
                                       canUtils::PRIORITY_LEVEL_NONE,
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       canUtils::EIGHT_CHANNEL_RELAY);
+
+        
+                                    
+        //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
       }
 
 

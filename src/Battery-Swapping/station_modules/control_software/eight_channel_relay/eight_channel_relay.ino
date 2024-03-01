@@ -158,7 +158,7 @@ void loop(){
   eightChannelRelayModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);
    
   // Print Channels' States for debugging.
-  // serialPrintChannelsStates
+  //eightChannelRelayModule.serialPrintChannelsStates();
 
 }
 
