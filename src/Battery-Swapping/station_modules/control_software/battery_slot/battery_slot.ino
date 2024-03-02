@@ -59,7 +59,7 @@ class BatterySlotModule
     uint32_t batteryCanBusErrorStateTimer;
     uint32_t relayBatteryStatesTimeout = 50;
     uint32_t sendPeripheralsStatesTimeout = 50;
-    uint32_t batteryCanBusErrorStateTimeout = 12000;
+    uint32_t batteryCanBusErrorStateTimeout = 15000;
 
 
  
@@ -272,8 +272,10 @@ class BatterySlotModule
 // -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
 BatterySlotModule batterySlotModule(canUtils::SLOT1);
 
+uint32_t time_test;
 
 void setup(){
+  Serial.begin(9600);
   
   // Eight-channel relay module standard set-up.
   batterySlotModule.stdSetUp();
@@ -287,7 +289,7 @@ void setup(){
 }
 
 void loop(){
-
+    
     // Receive and store battery states.
     batterySlotModule.getBatteryStates(canNetworkBattery, &canMsg_battery);
 
@@ -299,5 +301,9 @@ void loop(){
 
     // Receive orders and execute them.
     batterySlotModule.rpy2net_readAndExecuteCommands(canNetworkGlobal, &canMsg_net2rpy);
+
+
+
+    
 
 }

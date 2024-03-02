@@ -2,7 +2,7 @@
 #include <CanUtils.h>
 
 // (1) DEFINITION OF CAN-BUS VARIABLES
-struct can_frame canMsg = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}};
+struct can_frame canMsg_ = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}};
 MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
 
 
@@ -10,7 +10,7 @@ class BatterySlotModule_SoftwareTest
 {
   public:
   uint8_t batteryStates[11][8];
-  uint8_t peripheralsStates[5];
+  uint8_t peripheralsStates[6];
   const canUtils::MODULE_ADDRESS moduleAddressToTest;
   const canUtils::MODULE_ADDRESS moduleAddress = canUtils::CONTROL_CENTER;
   const String solenoidsNames[3] = {"BMS", "DOOR_LOCK", "BATTERY_LOCK"};
@@ -97,16 +97,18 @@ class BatterySlotModule_SoftwareTest
 
         if((3 <= commandOptionChoice) && (commandOptionChoice <= 7) && !menuHelperStates.ERROR_HAPPENED){
 
-            canMsg.can_dlc = 8;
-            for(int i=0; i<8; i++){canMsg.data[i] = menuHelperStates.canData[i];}
+            p_canMsg->can_dlc = 8;
+            for(int i=0; i<8; i++){p_canMsg->data[i] = menuHelperStates.canData[i];}
 
-            canMsg.can_id =
+            p_canMsg->can_id =
             canUtils::createCanMsgCanId(canUtils::HIGH_,
-                                          menuHelperStates.activityCode,
-                                          moduleAddressToTest,
-                                          moduleAddress);
+                                        menuHelperStates.activityCode,
+                                        moduleAddressToTest,
+                                        moduleAddress);
 
             canNetwork.sendMessage(p_canMsg);
+
+            Serial.println(F("MSG SENT!"));
         }
 
         if(!menuHelperStates.ERROR_HAPPENED){
@@ -190,7 +192,7 @@ class BatterySlotModule_SoftwareTest
   } 
   void serialPrintPeripheralsStates(){
         Serial.print(F("---"));
-        Serial.print(F("PERIPHERALS STATES OF SLOT")); Serial.println(moduleAddressToTest);
+        Serial.print(F("PERIPHERALS STATES OF SLOT")); Serial.print(moduleAddressToTest);
         Serial.print(F("---")); Serial.println();
 
         Serial.print(F("LIMIT SWITCH: ")); Serial.println(peripheralsStates[0]);
@@ -324,13 +326,15 @@ class BatterySlotModule_SoftwareTest
 
       uint32_t initTime = millis();
       while (millis() - initTime <= executionTime){
+        /*
         canUtils::visualizeCanNetwork(canNetwork, p_canMsg,
                                       canUtils::PRIORITY_LEVEL_NONE,
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       moduleAddressToTest);
+        */
 
-      //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
+       canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
       }
     }
 
@@ -347,7 +351,7 @@ BatterySlotModule_SoftwareTest slots[8] =
   BatterySlotModule_SoftwareTest(canUtils::SLOT8)
 };
 
-void superMenu(BatterySlotModule_SoftwareTest arr[8], MCP2515& canNetwork, struct can_frame* p_canMsg){
+void superMenu(BatterySlotModule_SoftwareTest (&slots_arr)[8], MCP2515& canNetwork, struct can_frame* p_canMsg){
 
   Serial.println(F("-----------------------------------------------------------------------------------------"));
   Serial.print(F("WELCOME!: Please enter the id (1 through 8) of the battery slot that you wish to control: "));
@@ -357,8 +361,8 @@ void superMenu(BatterySlotModule_SoftwareTest arr[8], MCP2515& canNetwork, struc
   if ((1 <= commandOptionChoice) && (commandOptionChoice <= 8)){
 
     if (commandOptionChoice == 1 || commandOptionChoice == 4 || commandOptionChoice == 5 || commandOptionChoice == 8){
-      Serial.print(F("SLOT")); Serial.println(commandOptionChoice);
-      arr[commandOptionChoice-1].Menu(canNetwork, p_canMsg);
+      Serial.print(F("SLOT")); Serial.println(slots_arr[commandOptionChoice-1].moduleAddressToTest);
+      slots_arr[commandOptionChoice-1].Menu(canNetwork, p_canMsg);
     } else {
       Serial.println(F("ID NOT YET SUPPORTED"));
     }
@@ -377,12 +381,13 @@ void setup(){
 Serial.begin(9600);
 canUtils::stdCanNetworkSetUp(canNetworkGlobal);
 
+
 }
 
 
 
 void loop(){
 
-  superMenu(slots, canNetworkGlobal, &canMsg);
+  superMenu(slots, canNetworkGlobal, &canMsg_);
 
 }
