@@ -32,14 +32,14 @@ class BatterySlotModule
 
     const uint8_t LIMIT_SWITCH_PIN = A0;
     const uint8_t SOLENOIDS_PINS[3] = {15, 6, 3};
+    const canUtils::MODULE_ADDRESS moduleAddress;
 
     bool limitSwitchState;                    // UN-PRESSED = 0, PRESSED = 1
     bool solenoidsStates[3];                  // {(BMS_OFF = 0, BMS_ON = 1), (DOOR_LOCKED = 0, DOOR_UNLOCKED = 1), (BATTERY_LOCKED = 0, BATTERY_UNLOCKED = 1)}
     LED_STRIP_STATE ledStripState;
-    canUtils::MODULE_ADDRESS moduleAddress;
-
     uint8_t batteryStates[11][8];
-    bool batteryCanBusErrorState = 0;          // NO-ERROR = 0, ERROR = 1
+    bool batteryCanBusErrorState ;            // NO-ERROR = 0, ERROR = 1
+
     const canUtils::ACTIVITY_CODE net2rpy_batteryActivityCodes[11] =
     {
       canUtils::net2rpy_BATTERY_DATA_0,
@@ -63,8 +63,7 @@ class BatterySlotModule
 
 
  
-    BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress){
-      this->moduleAddress = moduleAddress;
+    BatterySlotModule(canUtils::MODULE_ADDRESS moduleAddress):moduleAddress(moduleAddress){
       for(int j=0; j<11; j++){
         for(int i=0; i<8; i++){
           batteryStates[j][i] = 0;
@@ -100,7 +99,6 @@ class BatterySlotModule
         case BLUE:   setLedStripColor(0,   0,   120); ledStripState = state; break;
         case PURPLE: setLedStripColor(60,  0,   104); ledStripState = state; break;
       }
-      
     }
     void stdSetUp(){
         pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
@@ -114,23 +112,29 @@ class BatterySlotModule
         setSolenoidState(BMS, 0);
         setSolenoidState(DOOR_LOCK, 0);
         setSolenoidState(BATTERY_LOCK, 0);
+        resetBatteryCanBusErrorAndTimer();
         relayBatteryStatesTimer = millis();
         sendPeripheralsStatesTimer = millis();
-        batteryCanBusErrorStateTimer = millis();
     }
 
+    void resetBatteryCanBusErrorAndTimer(){
+      batteryCanBusErrorState = 0;
+      batteryCanBusErrorStateTimer = millis();
+    } 
     void updateBatteryCanBusErrorState(){
-      if(!limitSwitchState || !solenoidsStates[0]){batteryCanBusErrorStateTimer = millis();}
-      if(millis() - batteryCanBusErrorStateTimer > batteryCanBusErrorStateTimeout){
+      if(!limitSwitchState || !solenoidsStates[0]){
+        resetBatteryCanBusErrorAndTimer();
+      } else if(millis() - batteryCanBusErrorStateTimer > batteryCanBusErrorStateTimeout){
         batteryCanBusErrorState = 1;
-      }else{
+      } else {
         batteryCanBusErrorState = 0;
       }
     }
     void getBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
       getLimitSwitchState();
+      updateBatteryCanBusErrorState();
 
-      if(limitSwitchState && solenoidsStates[0]){
+      if(limitSwitchState && solenoidsStates[0] && !batteryCanBusErrorState){
         if(canUtils::readCanMsg(canNetwork, p_canMsg) == MCP2515::ERROR_OK){
           switch (p_canMsg->can_id){
               case 2550245121: for(int i=0; i<8; i++){batteryStates[0][i]  = p_canMsg->data[i];} break;
@@ -145,14 +149,15 @@ class BatterySlotModule
               case 2550834945: for(int i=0; i<8; i++){batteryStates[9][i]  = p_canMsg->data[i];} break;
               case 2550900481: for(int i=0; i<8; i++){batteryStates[10][i] = p_canMsg->data[i];} break;
           }
-          batteryCanBusErrorStateTimer = millis();
+          resetBatteryCanBusErrorAndTimer();
         }
       }
     }
     void net2rpy_relayBatteryStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
       getLimitSwitchState();
+      updateBatteryCanBusErrorState();
 
-      if(limitSwitchState && solenoidsStates[0]){
+      if(limitSwitchState && solenoidsStates[0] && !batteryCanBusErrorState){
         canUtils::PRIORITY_LEVEL priorityLevel;
         canUtils::ACTIVITY_CODE activityCode;
 
@@ -186,12 +191,12 @@ class BatterySlotModule
     void net2rpy_sendPeripheralsStates(MCP2515& canNetwork, struct can_frame* p_canMsg){
         p_canMsg->can_dlc = 8;
         getLimitSwitchState();
+        updateBatteryCanBusErrorState();
         p_canMsg->data[0] = (uint8_t)limitSwitchState;
         p_canMsg->data[1] = (uint8_t)ledStripState;
         p_canMsg->data[2] = (uint8_t)solenoidsStates[0];
         p_canMsg->data[3] = (uint8_t)solenoidsStates[1];
         p_canMsg->data[4] = (uint8_t)solenoidsStates[2];
-        updateBatteryCanBusErrorState();
         p_canMsg->data[5] = (uint8_t)batteryCanBusErrorState;
 
         p_canMsg->can_id = 
@@ -231,6 +236,9 @@ class BatterySlotModule
                 case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
                 rpy2net_setLedStripState(p_canMsg->data);
                 break;
+                case canUtils::rpy2net_RESET_BATTERY_CAN_BUS_ERROR_STATE_AND_TIMER:
+                rpy2net_resetBatteryCanBusErrorAndTimer();
+                break;
             }
         }
     }
@@ -260,6 +268,9 @@ class BatterySlotModule
     void rpy2net_setLedStripState(uint8_t canData[8]){
         LED_STRIP_STATE state = static_cast<LED_STRIP_STATE>(canData[0]);
         setLedStripState(state);
+    }
+    void rpy2net_resetBatteryCanBusErrorAndTimer(){
+      resetBatteryCanBusErrorAndTimer();
     }
  
   

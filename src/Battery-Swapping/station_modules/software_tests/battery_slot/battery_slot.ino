@@ -46,7 +46,8 @@ class BatterySlotModule_SoftwareTest
         Serial.println(F("5 - flipSolenoidState"));
         Serial.println(F("6 - flipSolenoidsStates"));
         Serial.println(F("7 - setLedStripState"));
-        Serial.println(F("8 - visualizeCanNetwork"));
+        Serial.println(F("8 - resetBatteryCanBusErrorAndTimer"));
+        Serial.println(F("9 - visualizeCanNetwork"));
         Serial.print(F("ENTER OPTION NOW: "));
         while (!Serial.available()){}
         commandOptionChoice = Serial.readStringUntil("\n").toInt();
@@ -89,13 +90,18 @@ class BatterySlotModule_SoftwareTest
             menuHelperStates.activityCode = canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE;
             break;
           case 8:
+            resetBatteryCanBusErrorAndTimer(menuHelperStates);
+            if(menuHelperStates.ERROR_HAPPENED){break;}
+            menuHelperStates.activityCode = canUtils::rpy2net_RESET_BATTERY_CAN_BUS_ERROR_STATE_AND_TIMER;
+            break;
+          case 9:
             visualizeCanNetwork(canNetwork, p_canMsg);
             break;
           default:
             Serial.println("ERROR: Option not supported!");
         }
 
-        if((3 <= commandOptionChoice) && (commandOptionChoice <= 7) && !menuHelperStates.ERROR_HAPPENED){
+        if((3 <= commandOptionChoice) && (commandOptionChoice <= 8) && !menuHelperStates.ERROR_HAPPENED){
 
             p_canMsg->can_dlc = 8;
             for(int i=0; i<8; i++){p_canMsg->data[i] = menuHelperStates.canData[i];}
@@ -108,7 +114,7 @@ class BatterySlotModule_SoftwareTest
 
             canNetwork.sendMessage(p_canMsg);
 
-            Serial.println(F("MSG SENT!"));
+            Serial.println(F("(canMsg sent!)"));
         }
 
         if(!menuHelperStates.ERROR_HAPPENED){
@@ -322,19 +328,22 @@ class BatterySlotModule_SoftwareTest
         default: Serial.println(F("VALUE_ERROR!")); helperStates.ERROR_HAPPENED = true;
       }
     }
+    void resetBatteryCanBusErrorAndTimer(struct MenuHelperStates& helperStates){
+      for(int i=0; i<8; i++){helperStates.canData[i] = 0;}
+    }
     void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 5000){
 
       uint32_t initTime = millis();
       while (millis() - initTime <= executionTime){
-        /*
+        
         canUtils::visualizeCanNetwork(canNetwork, p_canMsg,
                                       canUtils::PRIORITY_LEVEL_NONE,
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       moduleAddressToTest);
-        */
+        
 
-       canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
+       //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
       }
     }
 
