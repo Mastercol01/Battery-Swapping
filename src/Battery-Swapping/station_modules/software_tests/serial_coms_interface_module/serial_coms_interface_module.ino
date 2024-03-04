@@ -14,9 +14,13 @@ string messages coming from the Raspberry Pi into CAN messages that can then be 
 #include <CanUtils.h>
 
 // -DEFINITION OF CAN-BUS VARIABLES-
-struct can_frame canMsg_net2rpy = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
-struct can_frame canMsg_rpy2net = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
-MCP2515 canNetworkGlobal(9); // CS pin of global CAN network is 9.
+String canStrTest0 = "2217871626-1,1,1,1,1,1,1,1,\n";
+String canStrTest1 = "2217871626-0,0,0,0,0,0,0,0,\n";
+MCP2515 canNetwork0(9);  // CS pin of global CAN network is 9.
+MCP2515 canNetwork1(10); // CS pin of global CAN network is 10.
+struct can_frame canMsg0 = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
+struct can_frame canMsg1 = {.can_id = 0, .can_dlc = 8, .data = {0,0,0,0,0,0,0,0}}; 
+
 
 
 // CAN MSG ---> CAN STRING 
@@ -49,8 +53,9 @@ can_frame canStr2canMsg(String canStr){
 }
 
 
+
 void transmit_net2rpy(MCP2515& canNetwork, struct can_frame* p_canMsg){
-  if (canUtils::readCanMsg(canNetwork, p_canMsg, canUtils::CONTROL_CENTER) == MCP2515::ERROR_OK){
+  if (canUtils::readCanMsg(canNetwork, p_canMsg) == MCP2515::ERROR_OK){
     Serial.print(canMsg2canStr(*p_canMsg));
   }
 }
@@ -60,26 +65,36 @@ void transmit_rpy2net(MCP2515& canNetwork, struct can_frame* p_canMsg){
     canNetwork.sendMessage(p_canMsg);
   }
 }
-
+void serialFlush(){
+  while(Serial.available() > 0) {
+    char t = Serial.read();
+  }
+}
 
 void setup(){
 
   // Initialize Serial Communication
-  Serial.begin(115200); // Initialize Serial comunication.
+  Serial.begin(9600); // Initialize Serial comunication.
 
-  // CAN Network standard set-up.
-  canUtils::stdCanNetworkSetUp(canNetworkGlobal);
+  // CAN Network0 standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetwork0);
+
+  // CAN Network1 standard set-up.
+  canUtils::stdCanNetworkSetUp(canNetwork1);
 
 }
 
 
 void loop(){
 
-  // Receive CAN messages from global network and send it via Serial to the RPY as strings.
-  transmit_net2rpy(canNetworkGlobal, &canMsg_net2rpy);
+  while(!Serial.available()) {}
+  transmit_rpy2net(canNetwork0, &canMsg0);
+  transmit_net2rpy(canNetwork1, &canMsg1);
 
-  // Receive data via Serial from the RPY and send it over to the global network as CAN messages.
-  transmit_rpy2net(canNetworkGlobal, &canMsg_rpy2net);
+  
+
+
+
 }
 
 

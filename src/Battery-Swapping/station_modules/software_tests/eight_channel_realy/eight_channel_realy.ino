@@ -208,21 +208,23 @@ class EightChannelRelayModule_SoftwareTest{
           }
       }   
     }
-    void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 3000){
+    void visualizeCanNetwork(MCP2515& canNetwork, struct can_frame* p_canMsg, uint32_t executionTime = 12000){
 
       uint32_t initTime = millis();
       while (millis() - initTime <= executionTime){
         
+        /*
         canUtils::visualizeCanNetwork(canNetwork, p_canMsg,
                                       canUtils::PRIORITY_LEVEL_NONE,
                                       canUtils::ACTIVITY_CODE_NONE,
                                       moduleAddress,
                                       canUtils::EIGHT_CHANNEL_RELAY);
+        */
         
         
         
                                     
-        //canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
+        canUtils::visualizeCanNetwork(canNetwork, p_canMsg);
       }
 
 
