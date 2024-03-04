@@ -63,7 +63,12 @@ class MainWindow(QMainWindow):
         self.signals.reading_state.connect(worker.setReadingState)
         self.threadpool.start(worker)
 
-        QTimer.singleShot(8000,  partial(self.setReadingState, False))
+        self.sendCanMsgLOW()
+        QTimer.singleShot(5000,  self.sendCanMsgHIGH)
+        QTimer.singleShot(10000,  self.sendCanMsgLOW)
+        QTimer.singleShot(15000,  self.sendCanMsgHIGH)
+        QTimer.singleShot(20000,  self.sendCanMsgLOW)
+        QTimer.singleShot(20000,  partial(self.setReadingState, False))
         return None
     
     def serialPrint(self, line):
@@ -74,8 +79,16 @@ class MainWindow(QMainWindow):
         self.signals.reading_state.emit(state)
         return None
     
-    def keepSerialRead(self):
-        self.signals.keep_reading.emit()
+    def sendCanMsgLOW(self):
+        canId = int('100' + '001' + '00' + '{0:08b}'.format(3) + '{0:08b}'.format(9) + '{0:08b}'.format(10), 2)
+        canStr = str(canId) + "-0,0,0,0,0,0,0,0,\n"
+        self.ser.write(canStr.encode("utf-8"))
+        return None
+    
+    def sendCanMsgHIGH(self):
+        canId = int('100' + '001' + '00' + '{0:08b}'.format(3) + '{0:08b}'.format(9) + '{0:08b}'.format(10), 2)
+        canStr = str(canId) + "-1,1,1,1,1,1,1,1,\n"
+        self.ser.write(canStr.encode("utf-8"))
         return None
     
     def closeEvent(self, event):
