@@ -281,7 +281,7 @@ class BatterySlotModule
 
 
 // -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
-BatterySlotModule batterySlotModule(canUtils::SLOT5);
+BatterySlotModule batterySlotModule(canUtils::SLOT1);
 
 uint32_t time_test;
 
