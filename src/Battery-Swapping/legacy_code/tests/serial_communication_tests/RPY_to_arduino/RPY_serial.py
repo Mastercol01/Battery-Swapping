@@ -8,8 +8,8 @@ print("Serial OK")
 
 try:
     while True:
-        time.sleep(1)
-        canId = int('100' + '101' + '00' + '{0:08b}'.format(15) + '{0:08b}'.format(1) + '{0:08b}'.format(9), 2)
+        time.sleep(0.05)
+        canId = int('100' + '001' + '00' + '{0:08b}'.format(50) + '{0:08b}'.format(9) + '{0:08b}'.format(10), 2)
         canStr = str(canId) + "-1,1,1,1,1,1,1,1,\n"
         print(f"Send message to Arduino: {canStr}")
         ser.write(canStr.encode("utf-8"))
