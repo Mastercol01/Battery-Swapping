@@ -20,4 +20,4 @@ try:
         ser.write(canStr.encode("utf-8"))
 except KeyboardInterrupt:                                                                                                               
     print("Close serial communication")
-    ser.close()
+    ser.close()    
