@@ -157,15 +157,6 @@ class can_frame:
 
 
 
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     canMsgs = [0,0,0,0]
 
@@ -184,7 +175,8 @@ if __name__ == "__main__":
         print("-------------------\n")
         print(canMsg)
         print(repr(canMsg))
-        
+
+
 
 
     
