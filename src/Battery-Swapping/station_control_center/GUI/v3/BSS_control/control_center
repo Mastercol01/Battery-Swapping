@@ -1,0 +1,12 @@
+import CanUtils as canUtils
+from CanUtils import can_frame, uint32_t, uint8_t, CanStr
+
+class ControlCenter:
+    def __init__(self):
+        self.modules = {}
+        return None
+
+
+def updateStatesFromCanStr(self, canStr : CanStr):
+    canMsg = can_frame.from_canStr(CanStr)
+    self.modules[canMsg.destinationAddress.value]

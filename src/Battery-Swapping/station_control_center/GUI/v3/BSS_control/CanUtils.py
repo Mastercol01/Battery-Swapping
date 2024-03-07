@@ -144,7 +144,7 @@ class can_frame:
                               activityCode       :ACTIVITY_CODE, 
                               destinationAddress :MODULE_ADDRESS, 
                               originAddress      :MODULE_ADDRESS, 
-                              data:List[uint8_t ]= [0,0,0,0,0,0,0,0]):
+                              data:List[uint8_t]= [0,0,0,0,0,0,0,0]):
          return cls(createCanMsgCanId(priorityLevel, activityCode, destinationAddress, originAddress), data)
     
     def __repr__(self) -> str:
