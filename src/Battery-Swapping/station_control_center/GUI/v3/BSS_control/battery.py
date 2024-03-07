@@ -1,9 +1,10 @@
+import datetime
 import numpy as np
 import CanUtils as canUtils
 from collections import deque
-from CanUtils import can_frame
 from enum import Enum, unique
-from typing import Deque, Tuple, Set, Dict
+from CanUtils import can_frame
+from typing import Deque, Tuple, Set, Dict, Union
 
 
 
@@ -100,6 +101,10 @@ def getBatteryTemps_part2(canMsg : can_frame) -> Tuple[float, float, float]:
 
 class Battery:
     DEQUE_MAXLEN = 10
+    TOTAL_TIME_UNTIL_FULL_CHARGE = 10672 #[s] (From 30V to 40.1V)
+    PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 40.1V)
+    SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
+
     def __init__(self):
         self.buffers = {
             "voltage"  : deque(maxlen=self.DEQUE_MAXLEN),
@@ -143,20 +148,43 @@ class Battery:
 
         return None
     
+    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, isCharging_:bool, timeUntilFullCharge_:Union[float, None])->None:
+        self.inSlot = inSlot
+        self.bmsHasCanBusError = bmsHasCanBusError
+        self.isCharging_ = isCharging_
+        self.timeUntilFullCharge_ = timeUntilFullCharge_
+
+        if not self.inSlot or self.bmsHasCanBusError:
+            self.clearBuffers()
+
+        return None
+    
+    def checkForBatteryErrors(self)->None:
+        if not self.inSlot:
+            raise ValueError("Battery values are empty. Battery is not in slot")
+        
+        elif self.bmsHasCanBusError:
+            raise ValueError("Battery values are empty. Battery has a CAN-bus connection error.")
+        return None
+    
     @property
     def voltage(self)->float:
+        self.checkForBatteryErrors()
         return np.mean(self.buffers["voltage"])
 
     @property
     def current(self)->float:
+        self.checkForBatteryErrors()
         return np.mean(self.buffers["current"])
     
     @property
     def soc(self)->float:
+        self.checkForBatteryErrors()
         return np.mean(self.buffers["soc"])
     
     @property
     def warnings(self)->Set[BATTERY_WARNINGS]:
+        self.checkForBatteryErrors()
         return set(self.buffers["warnings"])
     
     @property
@@ -165,14 +193,50 @@ class Battery:
     
     @property
     def maxTemp(self)->Dict[str, float]:
+        self.checkForBatteryErrors()
         temperatures = self.temps
         maxTemperatureKey = max(temperatures, key=temperatures.get)
         return {maxTemperatureKey:temperatures[maxTemperatureKey]}
     
+    @property
+    def isCharging(self)->bool:
+        try:           
+            if self.current > 0.5: 
+                self.isCharging_ = True
+            else: 
+                self.isCharging_ = False
+        except ValueError:
+            pass
+        return self.isCharging_
+    
+    def estimateTimeUntilFullChargeFromBatteryValues(self)->float:
+        if self.soc < 100:
+            estimatedTime = self.TOTAL_TIME_UNTIL_FULL_CHARGE - self.SECONDS_PER_SOC_PERCENTAGE_INCREASE*self.soc #[s]
+        else:
+            estimatedTime = self.PARTIAL_TIME_UNTIL_FULL_CHARGE*self.current/12 #[s]
+
+        return estimatedTime
+    
+    @property
+    def timeUntilFullCharge(self):
+        try: 
+            self.timeUntilFullCharge_ = self.estimateTimeUntilFullChargeFromBatteryValues()
+        except ValueError:
+            pass
+        return self.timeUntilFullCharge_
+    
+    @property
+    def timeUntilFullChargeInStrFormat(self):
+        timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
+        timeStr = timeStr.split(":")
+        timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{timeStr[2]}s"
+        return timeStr
+
+    
     def clearBuffers(self)->None:
         for key in self.buffers.keys():
             self.buffers[key].clear()
-
+        return None
 
 
         
@@ -208,6 +272,7 @@ if __name__ == "__main__":
     for i in range(2):
         for canMsg in canMsgs:
             Battery_obj.updateStatesFromCanMsg(canMsg)
+            Battery_obj.updateStatesFromBatterySlotModule(True, False, False, None)
 
     print("-----BUFFERS-------")
     print(Battery_obj.buffers)
@@ -222,6 +287,12 @@ if __name__ == "__main__":
     print(f"Temperatures: {Battery_obj.temps}")
     print("----------------------")
     print(f"Max Temperature: {Battery_obj.maxTemp}")
+    print("-----------------------")
+    print(f"Time until full charge: {Battery_obj.timeUntilFullChargeInStrFormat}")
 
+    Battery_obj.clearBuffers()
 
+    print("-----BUFFERS-------")
+    print(Battery_obj.buffers)
+    print("------------------")
 

@@ -1,10 +1,11 @@
 from array import array
 from enum import Enum, unique
-from typing import NewType, List
+from typing import NewType, List, Generic
 
 uint32_t = NewType("uint32_t", int)
 uint8_t = NewType("uint8_t", int)
 CanStr = NewType("CanStr", str)
+ArrayOfBool = NewType("ArrayOfBool", List[bool])
 
 
 @unique
