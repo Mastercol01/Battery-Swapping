@@ -1,11 +1,42 @@
 import datetime
+import warnings
 import numpy as np
 import CanUtils as canUtils
+from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
 from CanUtils import can_frame
-from typing import Deque, Tuple, Set, Dict, Union
+from scipy.interpolate import interp1d
 
+
+batteryVoltagesForInterpolation = 30 + 0.1*np.arange(122)
+batteryChargeTimesForInterpolation = np.array(
+[177.34895,    177.32961667, 177.29101667, 177.27165, 177.25233333,
+177.21355,    177.17483333, 177.1361,     177.07796667, 177.01991667,
+176.96181667, 176.9231,     176.86501667, 176.78758333, 176.72948333,
+176.67145,    176.59405,    176.51668333, 176.4393,     176.34256667,
+176.26518333, 176.14923333, 176.05256667, 175.95593333, 175.84003333,
+175.72398333, 175.58865,    175.45335,    175.31798333, 175.18265,
+175.02811667, 174.85423333, 174.69956667, 174.52573333, 174.31316667,
+174.11993333, 173.9075,     173.71433333, 173.48268333, 173.23161667,
+172.98033333, 172.70966667, 172.45833333, 172.16835,    171.85905,
+171.53023333, 171.18208333, 170.83398333, 170.42781667, 170.02163333,
+169.32525,   167.93226667, 165.26195,    162.85978333, 160.64756667,
+158.62843333, 156.6084,     154.66566667, 152.74218333, 150.79928333,
+148.75936667, 146.467,      143.92238333, 141.06715,    138.15401667,
+135.20273333, 132.30953333, 129.4363,     126.67925,    123.9419,
+121.3403,     118.85528333, 116.35053333, 113.98221667, 111.76906667,
+109.65301667, 107.71158333, 105.82806667, 104.06123333, 102.37181667,
+100.77986667,  99.22666667,  97.67303333,  96.21676667,  94.72176667,
+93.28525,     91.82913333,  90.39266667,  88.89791667,  87.42256667,
+85.92761667,  84.37466667,  82.86028333,  81.28778333,  79.67615,
+78.02576667,  76.35581667,  74.60815,     72.91908333,  71.26901667,
+69.61908333,  67.96913333,  66.455,       65.03761667,  63.65901667,
+62.31966667,  60.99906667,  59.75615,     58.51353333,  57.27091667,
+56.04766667,  54.78558333,  53.50378333,  52.14465,     50.66911667,
+49.0953,      46.95813333,  40.50658333,  32.15116667,  25.35266667,
+16.42386667,  0])
+batteryVoltage2TimeUntilFullCharge = interp1d(batteryVoltagesForInterpolation,batteryChargeTimesForInterpolation*60)
 
 
 @unique
@@ -45,12 +76,15 @@ class BATTERY_WARNINGS(Enum):
 
 
 
+
 class Battery:
     DEQUE_MAXLEN = 10
-    TOTAL_TIME_UNTIL_FULL_CHARGE = 10672 #[s] (From 30V to 40.1V)
-    PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 40.1V)
-    SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
     MAX_CHARGING_CURRENT = 12 #[A]
+    WAITING_FOR_ALL_DATA_TIMEOUT = 4.5 #[s]
+    TOTAL_TIME_UNTIL_FULL_CHARGE = 10672  #[s] (From 30V to 42.1V)
+    PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 42.1V)
+    SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
+   
 
     def __init__(self):
         self.buffers = {
@@ -66,6 +100,13 @@ class Battery:
             "NTC6"     : deque(maxlen=self.DEQUE_MAXLEN),
             "MOSFET"   : deque(maxlen=self.DEQUE_MAXLEN),
         }
+        
+        self.inSlot = False
+        self.bmsState = 0
+        self.currentGlobalTime = 0
+        self.bmsHasCanBusError = False
+        self.waitingForAllData = False
+        self.localTimer = 0
         return None
 
 
@@ -106,23 +147,40 @@ class Battery:
         return None
     
 
-
-    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, isCharging_:bool, timeUntilFullCharge_:Union[float, None])->None:
+    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, bmsState:bool)->None:
         self.inSlot = inSlot
-        self.bmsHasCanBusError = bmsHasCanBusError
-        self.isCharging_ = isCharging_
-        self.timeUntilFullCharge_ = timeUntilFullCharge_
 
-        if not self.inSlot or self.bmsHasCanBusError:
+        if self.inSlot and not self.bmsState and bmsState:
+            self.waitingForAllData = True
+            self.localTimer = self.currentGlobalTime
+
+        elif self.inSlot and self.bmsState and bmsState:
+            if self.currentGlobalTime - self.localTimer > self.WAITING_FOR_ALL_DATA_TIMEOUT:
+                self.waitingForAllData = False
+
+        elif (self.inSlot and self.bmsState and not bmsState) or not self.inSlot or self.bmsHasCanBusError:
+            self.waitingForAllData = False
+
+        self.bmsState = bmsState
+        self.bmsHasCanBusError = bmsHasCanBusError
+
+        if not self.inSlot or self.bmsHasCanBusError or self.waitingForAllData:
             self.clearBuffers()
         return None
+    
 
     def checkForBatteryErrors(self)->None:
         if not self.inSlot:
-            raise ValueError("Battery values are empty. Battery is not in slot")
+            warnings.warn("Battery values are empty. Battery is not in slot")
         
         elif self.bmsHasCanBusError:
-            raise ValueError("Battery values are empty. Battery has a CAN-bus connection error.")
+            warnings.warn("Battery values are empty. Battery has a CAN-bus connection error.")
+        
+        elif self.waitingForAllData:
+            msg = "Battery values are empty. Waiting for all data."
+            msg = f"{msg} Try again in: {self.currentGlobalTime - self.localTimer}s"
+            warnings.warn(msg)
+            
         return None
     
 
@@ -160,35 +218,24 @@ class Battery:
     
     @property
     def isCharging(self)->bool:
-        try:           
-            if self.current > 0.5: 
-                self.isCharging_ = True
-            else: 
-                self.isCharging_ = False
-        except ValueError:
-            pass
+        if self.current > 0.4: 
+            self.isCharging_ = True
+        else: 
+            self.isCharging_ = False
         return self.isCharging_
     
-    def estimateTimeUntilFullChargeFromBatteryValues(self)->float:
-        if self.soc < 100:
-            estimatedTime = self.TOTAL_TIME_UNTIL_FULL_CHARGE - self.SECONDS_PER_SOC_PERCENTAGE_INCREASE*self.soc #[s]
-        else:
-            estimatedTime = self.PARTIAL_TIME_UNTIL_FULL_CHARGE*self.current/self.MAX_CHARGING_CURRENT #[s]
-        return estimatedTime
-    
     @property
-    def timeUntilFullCharge(self):
-        try: 
-            self.timeUntilFullCharge_ = self.estimateTimeUntilFullChargeFromBatteryValues()
-        except ValueError:
-            pass
-        return self.timeUntilFullCharge_
+    def timeUntilFullCharge(self)->float:
+        voltage_ = self.voltage
+        if voltage_ < 30: voltage_ = 30
+        elif voltage_ > 42.1: voltage_ = 42.1
+        return float(batteryVoltage2TimeUntilFullCharge(voltage_))
     
     @property
     def timeUntilFullChargeInStrFormat(self):
         timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
         timeStr = timeStr.split(":")
-        timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{timeStr[2]}s"
+        timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{round(float(timeStr[2]))}s"
         return timeStr
     
     def clearBuffers(self)->None:
@@ -197,6 +244,25 @@ class Battery:
         return None
 
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     Battery_obj = Battery()
 
@@ -228,15 +294,46 @@ if __name__ == "__main__":
     for i in range(2):
         for canMsg in canMsgs:
             Battery_obj.updateStatesFromCanMsg(canMsg)
-            Battery_obj.updateStatesFromBatterySlotModule(True, False, False, None)
+            Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
 
     print("-----BUFFERS-------")
     print(Battery_obj.buffers)
     print("------------------")
 
+    print("-----OTHER STATES-------")
+    print(f"BMS state: {Battery_obj.bmsState}")
+    print(f"In Slot: {Battery_obj.inSlot}")
+    print(f"BMS has can bus error: {Battery_obj.bmsHasCanBusError}")
+    print(f"Waiting for all Data: {Battery_obj.waitingForAllData}")
+    print(f"Current Global Time: {Battery_obj.currentGlobalTime}")
+    print(f"Local Timer: {Battery_obj.localTimer}")
+    print("------------------")
+    Battery_obj.checkForBatteryErrors()
+
+    Battery_obj.currentGlobalTime = 6
+    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
+
+
+    print("-----OTHER STATES-------")
+    print(f"BMS state: {Battery_obj.bmsState}")
+    print(f"In Slot: {Battery_obj.inSlot}")
+    print(f"BMS has can bus error: {Battery_obj.bmsHasCanBusError}")
+    print(f"Waiting for all Data: {Battery_obj.waitingForAllData}")
+    print(f"Current Global Time: {Battery_obj.currentGlobalTime}")
+    print(f"Local Timer: {Battery_obj.localTimer}")
+    print("------------------")
+    Battery_obj.checkForBatteryErrors()
+
+
+    Battery_obj.currentGlobalTime = 11
+    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
+    Battery_obj.checkForBatteryErrors()
+
+    print("----------------------")
     print(f"Voltage: {Battery_obj.voltage}")
     print(f"Current: {Battery_obj.current}")
     print(f"SOC: {Battery_obj.soc}")
+    print(f"Is Charging: {Battery_obj.isCharging}")
     print("----------------------")
     print(f"Warnings: {Battery_obj.warnings}")
     print("----------------------")

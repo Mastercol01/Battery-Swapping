@@ -59,7 +59,7 @@ class BatterySlotModule
     uint32_t batteryCanBusErrorStateTimer;
     uint32_t relayBatteryStatesTimeout = 50;
     uint32_t sendPeripheralsStatesTimeout = 50;
-    uint32_t batteryCanBusErrorStateTimeout = 15000;
+    uint32_t batteryCanBusErrorStateTimeout = 4000;
 
 
  
@@ -281,7 +281,7 @@ class BatterySlotModule
 
 
 // -INTIALIZATION OF EIGHT-CHANNEL RELAY MODULE CLASS- 
-BatterySlotModule batterySlotModule(canUtils::SLOT1);
+BatterySlotModule batterySlotModule(canUtils::SLOT8);
 
 uint32_t time_test;
 

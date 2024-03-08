@@ -1,9 +1,9 @@
 import numpy as np
 from array import array
+from typing import List
 import CanUtils as canUtils
 from enum import Enum, unique
 from collections import deque
-from typing import List, Union
 from CanUtils import can_frame, ArrayOfBool
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -23,11 +23,12 @@ class CHANNEL_NAME(Enum):
 class EightChannelRelay:
     DEQUE_MAXLEN = 5
     SIGNALS = BatterySlotSignals()
+    CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
+    EIGHT_CHANNEL_RELAY_ADDRESS = canUtils.MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
 
     def __init__(self):
         self.buffers = {name:deque(maxlen=self.DEQUE_MAXLEN) for name in CHANNEL_NAME}
-        self.moduleAddress = canUtils.MODULE_ADDRESS.CONTROL_CENTER
-        self.moduleAddressToControl = canUtils.MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
+        self.currentGlobalTime = 0
         return None
 
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
@@ -51,37 +52,37 @@ class EightChannelRelay:
         data = [name.value, state, 0, 0, 0, 0, 0, 0]
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_STATE_OF_EIGHT_CHANNEL_RELAY_MODULE,
-                                            self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.EIGHT_CHANNEL_RELAY_ADDRESS,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
     
     def setChannelStates(self, states : List[bool])->None:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                    canUtils.ACTIVITY_CODE.rpy2net_SET_STATES_OF_EIGHT_CHANNEL_RELAY_MODULE,
-                                    self.moduleAddressToControl,
-                                    self.moduleAddress,
-                                    states)
+                                            canUtils.ACTIVITY_CODE.rpy2net_SET_STATES_OF_EIGHT_CHANNEL_RELAY_MODULE,
+                                            self.EIGHT_CHANNEL_RELAY_ADDRESS,
+                                            self.CONTROL_CENTER_ADDRESS,
+                                            states)
         self.sendCanMsg(canMsg)
         return None
 
     def flipChannelState(self, name : CHANNEL_NAME)->None:
         data = [name.value, 0, 0, 0, 0, 0, 0, 0]
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                    canUtils.ACTIVITY_CODE.rpy2net_FLIP_STATE_OF_EIGHT_CHANNEL_RELAY_MODULE,
-                                    self.moduleAddressToControl,
-                                    self.moduleAddress,
-                                    data)
+                                            canUtils.ACTIVITY_CODE.rpy2net_FLIP_STATE_OF_EIGHT_CHANNEL_RELAY_MODULE,
+                                            self.EIGHT_CHANNEL_RELAY_ADDRESS,
+                                            self.CONTROL_CENTER_ADDRESS,
+                                            data)
         self.sendCanMsg(canMsg)
         return None
     
     def flipChannelStates(self, flipLogic : List[bool])->None:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                    canUtils.ACTIVITY_CODE.rpy2net_FLIP_STATES_OF_EIGHT_CHANNEL_RELAY_MODULE,
-                                    self.moduleAddressToControl,
-                                    self.moduleAddress,
-                                    flipLogic)
+                                            canUtils.ACTIVITY_CODE.rpy2net_FLIP_STATES_OF_EIGHT_CHANNEL_RELAY_MODULE,
+                                            self.EIGHT_CHANNEL_RELAY_ADDRESS,
+                                            self.CONTROL_CENTER_ADDRESS,
+                                            flipLogic)
         self.sendCanMsg(canMsg)
         return None
 

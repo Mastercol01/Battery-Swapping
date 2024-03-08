@@ -1,12 +1,13 @@
 import numpy as np
 import battery as batt
 from array import array
+from typing import List
 import CanUtils as canUtils
 from enum import Enum, unique
 from collections import deque
-from typing import List, Union
 from CanUtils import can_frame, ArrayOfBool
 from PyQt5.QtCore import pyqtSignal, QObject
+
 
 class BatterySlotSignals(QObject):
     command = pyqtSignal(str)
@@ -29,8 +30,11 @@ class LED_STRIP_STATE(Enum):
 class BatterySlot:
     DEQUE_MAXLEN = 5
     SIGNALS = BatterySlotSignals()
+    CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
+
 
     def __init__(self, moduleAddressToControl : canUtils.MODULE_ADDRESS):
+        self.moduleAddressToControl = moduleAddressToControl
         self.buffers = {
         "limitSwitchState"        : deque(maxlen=self.DEQUE_MAXLEN),
         "batteryCanBusErrorState" : deque(maxlen=self.DEQUE_MAXLEN),
@@ -40,10 +44,8 @@ class BatterySlot:
                                      SOLENOID_NAME.BATTERY_LOCK : deque(maxlen=self.DEQUE_MAXLEN)},
         }
         self.battery = batt.Battery()
-        self.moduleAddressToControl = moduleAddressToControl
-        self.moduleAddress = canUtils.MODULE_ADDRESS.CONTROL_CENTER
-        
-
+        self.currentGlobalTime = 0
+        return None
 
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
         if canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE:
@@ -53,21 +55,13 @@ class BatterySlot:
             self.buffers["solenoidsStates"][SOLENOID_NAME.DOOR_LOCK].append(canMsg.data[3])
             self.buffers["solenoidsStates"][SOLENOID_NAME.BATTERY_LOCK].append(canMsg.data[4])
             self.buffers["batteryCanBusErrorState"].append(canMsg.data[5])
-
-            self.battery.updateStatesFromBatterySlotModule(self.limitSwitchState, 
-                                                           self.batteryCanBusErrorState, 
-                                                           self.solenoidsStates[0] and self.chargerRelayState,
-                                                           self.timeUntilFullBatteryCharge)
         else:
             self.battery.updateStatesFromCanMsg(canMsg)
+
+        self.battery.updateStatesFromBatterySlotModule(self.limitSwitchState, 
+                                                       self.batteryCanBusErrorState,
+                                                       self.solenoidsStates[SOLENOID_NAME.BMS])
         return None
-    
-     
-    def updateStatesFromControlCenter(self, chargerRelayState:bool, timeUntilFullBatteryCharge:Union[float, None])->None:
-        self.chargerRelayState = chargerRelayState
-        self.timeUntilFullBatteryCharge = timeUntilFullBatteryCharge
-        return None
-    
 
 
     @property
@@ -102,7 +96,7 @@ class BatterySlot:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
@@ -115,7 +109,7 @@ class BatterySlot:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
@@ -125,7 +119,7 @@ class BatterySlot:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_FLIP_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
@@ -138,17 +132,17 @@ class BatterySlot:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
 
-    def setLedStripState(self, name : LED_STRIP_STATE):
-        data = [name.value, 0, 0, 0, 0, 0, 0, 0, 0]
+    def setLedStripState(self, state : LED_STRIP_STATE):
+        data = [state.value, 0, 0, 0, 0, 0, 0, 0, 0]
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress,
+                                            self.CONTROL_CENTER_ADDRESS,
                                             data)
         self.sendCanMsg(canMsg)
         return None
@@ -157,7 +151,7 @@ class BatterySlot:
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
-                                            self.moduleAddress)
+                                            self.CONTROL_CENTER_ADDRESS)
         self.sendCanMsg(canMsg)
         return None
     
