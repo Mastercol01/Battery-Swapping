@@ -106,6 +106,7 @@ class Battery:
         return None
     
 
+
     def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, isCharging_:bool, timeUntilFullCharge_:Union[float, None])->None:
         self.inSlot = inSlot
         self.bmsHasCanBusError = bmsHasCanBusError
