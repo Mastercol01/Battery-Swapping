@@ -45,65 +45,12 @@ class BATTERY_WARNINGS(Enum):
 
 
 
-# canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_0
-def getBatteryGeneralStatusFromCanMsg(canMsg : can_frame) -> Tuple[float, float, int]:
-    voltage = 0.1*(  (canMsg.data[1] << 8) | canMsg.data[0] )
-    current = 0.1*( ((canMsg.data[3] << 8) | canMsg.data[2]) - 32000 )
-    soc     = canMsg.data[4]
-    return (voltage, current, soc)
-
-
-# canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_0
-def getBatteryWarningsFromCanMsg_part1(canMsg : can_frame) -> Deque[BATTERY_WARNINGS]:
-    activeBatteryWarnings = deque()
-
-    if canMsg.data[5] > 0:
-        bitValues = [(((1 << j) & canMsg.data[5]) >> j) for j in range(8)]
-        activeBatteryWarnings.extend( [BATTERY_WARNINGS(0 + j) for j in range(8) if bitValues[j]] )
-
-    if canMsg.data[6] > 0:
-        bitValues = [(((1 << j) & canMsg.data[6]) >> j) for j in range(8)]
-        activeBatteryWarnings.extend( [BATTERY_WARNINGS(8 + j) for j in range(8) if bitValues[j]] )
-
-    if canMsg.data[7] > 0:
-        bitValues = [(((1 << j) & canMsg.data[7]) >> j) for j in range(8)]
-        activeBatteryWarnings.extend( [BATTERY_WARNINGS(16 + j) for j in range(8) if bitValues[j]] )
-
-    return activeBatteryWarnings
-
-
-# canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_1
-def getBatteryWarningsFromCanMsg_part2(canMsg : can_frame) -> Deque[BATTERY_WARNINGS]:
-    activeBatteryWarnings = deque()
-
-    if canMsg.data[0]:
-        bitValues = [(((1 << j) & canMsg.data[0]) >> j) for j in range(5)]
-        activeBatteryWarnings.extend( [BATTERY_WARNINGS(24 + j) for j in range(5) if bitValues[j]] )
-
-    if canMsg.data[1]:
-        bitValues = [(((1 << j) & canMsg.data[1]) >> j) for j in range(3)]
-        activeBatteryWarnings.extend( [BATTERY_WARNINGS(29 + j) for j in range(3) if bitValues[j]] )
-
-    return activeBatteryWarnings
-
-
-# canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_9
-def getBatteryTemps_part1(canMsg : can_frame) -> Tuple[float, float, float, float]:
-    return (canMsg.data[4] - 40, canMsg.data[5] - 40, canMsg.data[6] - 40, canMsg.data[7] - 40)
-
-
-# canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_10
-def getBatteryTemps_part2(canMsg : can_frame) -> Tuple[float, float, float]:
-    return (canMsg.data[0] - 40, canMsg.data[1] - 40, canMsg.data[2] - 40)
-
-
-
-
 class Battery:
     DEQUE_MAXLEN = 10
     TOTAL_TIME_UNTIL_FULL_CHARGE = 10672 #[s] (From 30V to 40.1V)
     PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 40.1V)
     SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
+    MAX_CHARGING_CURRENT = 12 #[A]
 
     def __init__(self):
         self.buffers = {
@@ -121,33 +68,44 @@ class Battery:
         }
         return None
 
+
+
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
 
         if canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_0:
-            (voltage_,current_,soc_) = getBatteryGeneralStatusFromCanMsg(canMsg)
-            self.buffers["warnings"].extend(getBatteryWarningsFromCanMsg_part1(canMsg))
-            self.buffers["voltage"].append(voltage_)
-            self.buffers["current"].append(current_)
-            self.buffers["soc"].append(soc_)
+            self.buffers["soc"].append(canMsg.data[4])
+            self.buffers["voltage"].append( 0.1*((canMsg.data[1] << 8) | canMsg.data[0]) )
+            self.buffers["current"].append( 0.1*((canMsg.data[3] << 8) | canMsg.data[2]) - 3200 )
+            
+            for i in range(3):
+                if canMsg.data[i+5] > 0:
+                    bitValues = [(((1 << j) & canMsg.data[i+5]) >> j) for j in range(8)]
+                    self.buffers["warnings"].extend( [BATTERY_WARNINGS(8*i + j) for j in range(8) if bitValues[j]] )
+
 
         elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_1:
-            self.buffers["warnings"].extend(getBatteryWarningsFromCanMsg_part2(canMsg))
+            if canMsg.data[0]:
+                bitValues = [(((1 << j) & canMsg.data[0]) >> j) for j in range(5)]
+                self.buffers["warnings"].extend( [BATTERY_WARNINGS(24 + j) for j in range(5) if bitValues[j]] )
+
+            if canMsg.data[1]:
+                bitValues = [(((1 << j) & canMsg.data[1]) >> j) for j in range(3)]
+                self.buffers["warnings"].extend( [BATTERY_WARNINGS(29 + j) for j in range(3) if bitValues[j]] )
+
 
         elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_9:
-            ntc1_, ntc2_, ntc3_, ntc4_ = getBatteryTemps_part1(canMsg) 
-            self.buffers["NTC1"].append(ntc1_)
-            self.buffers["NTC2"].append(ntc2_)
-            self.buffers["NTC3"].append(ntc3_)
-            self.buffers["NTC4"].append(ntc4_)
+            for i in range(1,5):
+                self.buffers[f"NTC{i}"].append(canMsg.data[i+3] - 40)
+
 
         elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_10:
-            ntc5_, ntc6_, mosfet = getBatteryTemps_part2(canMsg) 
-            self.buffers["NTC5"].append(ntc5_)
-            self.buffers["NTC6"].append(ntc6_)
-            self.buffers["MOSFET"].append(mosfet)
+            self.buffers["NTC5"].append(  canMsg.data[0] - 40)
+            self.buffers["NTC6"].append(  canMsg.data[1] - 40)
+            self.buffers["MOSFET"].append(canMsg.data[2] - 40)
 
         return None
     
+
     def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, isCharging_:bool, timeUntilFullCharge_:Union[float, None])->None:
         self.inSlot = inSlot
         self.bmsHasCanBusError = bmsHasCanBusError
@@ -156,9 +114,8 @@ class Battery:
 
         if not self.inSlot or self.bmsHasCanBusError:
             self.clearBuffers()
-
         return None
-    
+
     def checkForBatteryErrors(self)->None:
         if not self.inSlot:
             raise ValueError("Battery values are empty. Battery is not in slot")
@@ -167,6 +124,8 @@ class Battery:
             raise ValueError("Battery values are empty. Battery has a CAN-bus connection error.")
         return None
     
+
+
     @property
     def voltage(self)->float:
         self.checkForBatteryErrors()
@@ -189,11 +148,11 @@ class Battery:
     
     @property
     def temps(self)->Dict[str, float]:
+        self.checkForBatteryErrors()
         return {key:np.mean(val) for key,val in self.buffers.items() if key not in ["voltage", "current", "soc", "warnings"]}
     
     @property
     def maxTemp(self)->Dict[str, float]:
-        self.checkForBatteryErrors()
         temperatures = self.temps
         maxTemperatureKey = max(temperatures, key=temperatures.get)
         return {maxTemperatureKey:temperatures[maxTemperatureKey]}
@@ -213,8 +172,7 @@ class Battery:
         if self.soc < 100:
             estimatedTime = self.TOTAL_TIME_UNTIL_FULL_CHARGE - self.SECONDS_PER_SOC_PERCENTAGE_INCREASE*self.soc #[s]
         else:
-            estimatedTime = self.PARTIAL_TIME_UNTIL_FULL_CHARGE*self.current/12 #[s]
-
+            estimatedTime = self.PARTIAL_TIME_UNTIL_FULL_CHARGE*self.current/self.MAX_CHARGING_CURRENT #[s]
         return estimatedTime
     
     @property
@@ -231,15 +189,12 @@ class Battery:
         timeStr = timeStr.split(":")
         timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{timeStr[2]}s"
         return timeStr
-
     
     def clearBuffers(self)->None:
         for key in self.buffers.keys():
             self.buffers[key].clear()
         return None
 
-
-        
     
 if __name__ == "__main__":
     Battery_obj = Battery()

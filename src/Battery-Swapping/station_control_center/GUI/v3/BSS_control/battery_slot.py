@@ -1,10 +1,10 @@
 import numpy as np
 import battery as batt
 from array import array
-from typing import List, Union
 import CanUtils as canUtils
 from enum import Enum, unique
 from collections import deque
+from typing import List, Union
 from CanUtils import can_frame, ArrayOfBool
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -29,7 +29,6 @@ class LED_STRIP_STATE(Enum):
 class BatterySlot:
     DEQUE_MAXLEN = 5
     SIGNALS = BatterySlotSignals()
-    
 
     def __init__(self, moduleAddressToControl : canUtils.MODULE_ADDRESS):
         self.buffers = {
@@ -44,6 +43,7 @@ class BatterySlot:
         self.moduleAddressToControl = moduleAddressToControl
         self.moduleAddress = canUtils.MODULE_ADDRESS.CONTROL_CENTER
         
+
 
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
         if canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE:
@@ -61,12 +61,15 @@ class BatterySlot:
         else:
             self.battery.updateStatesFromCanMsg(canMsg)
         return None
+    
      
     def updateStatesFromControlCenter(self, chargerRelayState:bool, timeUntilFullBatteryCharge:Union[float, None])->None:
         self.chargerRelayState = chargerRelayState
         self.timeUntilFullBatteryCharge = timeUntilFullBatteryCharge
         return None
     
+
+
     @property
     def limitSwitchState(self)->bool:
         return bool(round(np.mean(self.buffers["limitSwitchState"])))
@@ -87,6 +90,8 @@ class BatterySlot:
     @property
     def batteryCanBusErrorState(self)->bool:
         return bool(round(np.mean(self.buffers["batteryCanBusErrorState"])))
+    
+
     
     def sendCanMsg(self, canMsg : can_frame)->None:
         self.SIGNALS.command.emit(canMsg.to_canStr())
@@ -125,11 +130,11 @@ class BatterySlot:
         self.sendCanMsg(canMsg)
         return None
     
-    def flipSolenoidStates(self, states : List[bool]):
-        if len(states)!=3:
-            raise ValueError("'states' must be a list/array of length 3")
+    def flipSolenoidStates(self, flipLogic : List[bool]):
+        if len(flipLogic)!=3:
+            raise ValueError("'flipLogic' must be a list/array of length 3")
         
-        data = [states[0], states[1], states[2], 0, 0, 0, 0, 0]
+        data = [flipLogic[0], flipLogic[1], flipLogic[2], 0, 0, 0, 0, 0]
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
