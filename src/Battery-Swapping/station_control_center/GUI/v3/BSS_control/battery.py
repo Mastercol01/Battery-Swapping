@@ -2,11 +2,13 @@ import datetime
 import warnings
 import numpy as np
 import CanUtils as canUtils
+from CanUtils import uint8_t
 from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
 from CanUtils import can_frame
 from scipy.interpolate import interp1d
+
 
 
 batteryVoltagesForInterpolation = 30 + 0.1*np.arange(122)
@@ -77,6 +79,8 @@ class BATTERY_WARNINGS(Enum):
 
 
 
+
+
 class Battery:
     DEQUE_MAXLEN = 10
     MAX_CHARGING_CURRENT = 12 #[A]
@@ -84,6 +88,7 @@ class Battery:
     TOTAL_TIME_UNTIL_FULL_CHARGE = 10672  #[s] (From 30V to 42.1V)
     PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 42.1V)
     SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
+    FATAL_BATTERY_WARNINGS = set()
    
 
     def __init__(self):
@@ -101,12 +106,16 @@ class Battery:
             "MOSFET"   : deque(maxlen=self.DEQUE_MAXLEN),
         }
         
-        self.inSlot = False
-        self.bmsState = 0
-        self.currentGlobalTime = 0
-        self.bmsHasCanBusError = False
-        self.waitingForAllData = False
+        
+        # TIMERS
         self.localTimer = 0
+        self.currentGlobalTime = 0
+
+        # ADDRESSABILITY STATUS
+        self.inSlot = False
+        self.bmsON = False
+        self.waitingForAllData = False
+        self.bmsHasCanBusError = False
         return None
 
 
@@ -147,67 +156,68 @@ class Battery:
         return None
     
 
-    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, bmsState:bool)->None:
-        self.inSlot = inSlot
+    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, bmsON:bool)->None:
 
-        if self.inSlot and not self.bmsState and bmsState:
+        if not inSlot:
+            self.waitingForAllData = False
+            self.clearBuffers()
+
+        elif not bmsON:
+            self.waitingForAllData = False
+            self.clearBuffers()
+
+        elif not self.bmsON:
             self.waitingForAllData = True
             self.localTimer = self.currentGlobalTime
-
-        elif self.inSlot and self.bmsState and bmsState:
-            if self.currentGlobalTime - self.localTimer > self.WAITING_FOR_ALL_DATA_TIMEOUT:
-                self.waitingForAllData = False
-
-        elif (self.inSlot and self.bmsState and not bmsState) or not self.inSlot or self.bmsHasCanBusError:
-            self.waitingForAllData = False
-
-        self.bmsState = bmsState
-        self.bmsHasCanBusError = bmsHasCanBusError
-
-        if not self.inSlot or self.bmsHasCanBusError or self.waitingForAllData:
             self.clearBuffers()
+
+        elif self.currentGlobalTime - self.localTimer > self.WAITING_FOR_ALL_DATA_TIMEOUT:
+            self.waitingForAllData = False
+            if bmsHasCanBusError:
+                self.clearBuffers()
+
+        else:
+            self.clearBuffers()
+
+        self.inSlot = inSlot
+        self.bmsON = bmsON
+        self.bmsHasCanBusError = bmsHasCanBusError
         return None
     
-
-    def checkForBatteryErrors(self)->None:
-        if not self.inSlot:
-            warnings.warn("Battery values are empty. Battery is not in slot")
-        
-        elif self.bmsHasCanBusError:
-            warnings.warn("Battery values are empty. Battery has a CAN-bus connection error.")
-        
-        elif self.waitingForAllData:
-            msg = "Battery values are empty. Waiting for all data."
-            msg = f"{msg} Try again in: {self.currentGlobalTime - self.localTimer}s"
-            warnings.warn(msg)
-            
-        return None
+    @property
+    def isAddressable(self)->bool:
+        return self.inSlot and self.bmsON and not self.waitingForAllData and not self.bmsHasCanBusError
     
-
+    @property
+    def addressabilityStatus(self)->uint8_t:
+        return (self.inSlot<<3) | (self.bmsON<<2) | (self.waitingForAllData<<1) | (self.bmsHasCanBusError)
 
     @property
     def voltage(self)->float:
-        self.checkForBatteryErrors()
         return np.mean(self.buffers["voltage"])
 
     @property
     def current(self)->float:
-        self.checkForBatteryErrors()
         return np.mean(self.buffers["current"])
     
     @property
     def soc(self)->float:
-        self.checkForBatteryErrors()
         return np.mean(self.buffers["soc"])
     
     @property
     def warnings(self)->Set[BATTERY_WARNINGS]:
-        self.checkForBatteryErrors()
         return set(self.buffers["warnings"])
     
     @property
+    def hasWarnings(self)->bool:
+        return bool(self.warnings)
+    
+    @property
+    def isDamaged(self)->bool:
+        return not self.warnings.isdisjoint(self.FATAL_BATTERY_WARNINGS)
+    
+    @property
     def temps(self)->Dict[str, float]:
-        self.checkForBatteryErrors()
         return {key:np.mean(val) for key,val in self.buffers.items() if key not in ["voltage", "current", "soc", "warnings"]}
     
     @property
@@ -218,11 +228,15 @@ class Battery:
     
     @property
     def isCharging(self)->bool:
-        if self.current > 0.4: 
+        if self.current > 0.1: 
             self.isCharging_ = True
         else: 
             self.isCharging_ = False
         return self.isCharging_
+    
+    @property
+    def isCharged(self)->bool:
+        return self.voltage >= 42 and not self.isCharging
     
     @property
     def timeUntilFullCharge(self)->float:
@@ -233,27 +247,51 @@ class Battery:
     
     @property
     def timeUntilFullChargeInStrFormat(self):
-        timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
-        timeStr = timeStr.split(":")
-        timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{round(float(timeStr[2]))}s"
+        try:
+            timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
+            timeStr = timeStr.split(":")
+            timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{round(float(timeStr[2]))}s"
+        except ValueError:
+            timeStr = "nan"
         return timeStr
+    
     
     def clearBuffers(self)->None:
         for key in self.buffers.keys():
             self.buffers[key].clear()
         return None
-
     
+    def _debugPrint(self):
 
+        print("----- BUFFERS -----")
+        for key, val in self.buffers.items():
+            print(f"{key}: {val}")
 
+        print()
 
+        print("----- ADDRRESABILITY -----")
+        print(f"inSlot: {self.inSlot}")
+        print(f"bmsON: {self.bmsON}")
+        print(f"waitingForAllData: {self.waitingForAllData}")
+        print(f"bmsHasCanBusError: {self.bmsHasCanBusError}")
+        print(f"isAddressable: {self.isAddressable}")
+        print(f"addressabilityStatus: {self.addressabilityStatus}")
 
+        print()
 
-
-
-
-
-
+        print("----- ATTRIBUTES -----")
+        print(f"voltage: {self.voltage}")
+        print(f"current: {self.current}")
+        print(f"soc: {self.soc}")
+        print(f"warnings: {self.warnings}")
+        print(f"hasWarnings: {self.hasWarnings}")
+        print(f"isDamaged: {self.isDamaged}")
+        print(f"temps: {self.temps}")
+        print(f"maxTemp: {self.maxTemp}")
+        print(f"isCharging: {self.isCharging}")
+        print(f"isCharged: {self.isCharged}")
+        print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
+        return None
 
 
 
@@ -265,6 +303,12 @@ class Battery:
 
 if __name__ == "__main__":
     Battery_obj = Battery()
+    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
+    Battery_obj._debugPrint()
+
+    Battery_obj.currentGlobalTime = 10
+    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
+    Battery_obj._debugPrint()
 
     canMsgs = [0, 0, 0, 0]
     canMsgs[0] = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
@@ -291,61 +335,10 @@ if __name__ == "__main__":
                                             canUtils.MODULE_ADDRESS.SLOT1,
                                             data=[80,79,45,0,0,0,0,0])
     
-    for i in range(2):
-        for canMsg in canMsgs:
-            Battery_obj.updateStatesFromCanMsg(canMsg)
-            Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
 
-    print("-----BUFFERS-------")
-    print(Battery_obj.buffers)
-    print("------------------")
+    for canMsg in canMsgs:
+        Battery_obj.updateStatesFromCanMsg(canMsg)
 
-    print("-----OTHER STATES-------")
-    print(f"BMS state: {Battery_obj.bmsState}")
-    print(f"In Slot: {Battery_obj.inSlot}")
-    print(f"BMS has can bus error: {Battery_obj.bmsHasCanBusError}")
-    print(f"Waiting for all Data: {Battery_obj.waitingForAllData}")
-    print(f"Current Global Time: {Battery_obj.currentGlobalTime}")
-    print(f"Local Timer: {Battery_obj.localTimer}")
-    print("------------------")
-    Battery_obj.checkForBatteryErrors()
+    Battery_obj._debugPrint()
 
-    Battery_obj.currentGlobalTime = 6
-    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
-
-
-    print("-----OTHER STATES-------")
-    print(f"BMS state: {Battery_obj.bmsState}")
-    print(f"In Slot: {Battery_obj.inSlot}")
-    print(f"BMS has can bus error: {Battery_obj.bmsHasCanBusError}")
-    print(f"Waiting for all Data: {Battery_obj.waitingForAllData}")
-    print(f"Current Global Time: {Battery_obj.currentGlobalTime}")
-    print(f"Local Timer: {Battery_obj.localTimer}")
-    print("------------------")
-    Battery_obj.checkForBatteryErrors()
-
-
-    Battery_obj.currentGlobalTime = 11
-    Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
-    Battery_obj.checkForBatteryErrors()
-
-    print("----------------------")
-    print(f"Voltage: {Battery_obj.voltage}")
-    print(f"Current: {Battery_obj.current}")
-    print(f"SOC: {Battery_obj.soc}")
-    print(f"Is Charging: {Battery_obj.isCharging}")
-    print("----------------------")
-    print(f"Warnings: {Battery_obj.warnings}")
-    print("----------------------")
-    print(f"Temperatures: {Battery_obj.temps}")
-    print("----------------------")
-    print(f"Max Temperature: {Battery_obj.maxTemp}")
-    print("-----------------------")
-    print(f"Time until full charge: {Battery_obj.timeUntilFullChargeInStrFormat}")
-
-    Battery_obj.clearBuffers()
-
-    print("-----BUFFERS-------")
-    print(Battery_obj.buffers)
-    print("------------------")
 

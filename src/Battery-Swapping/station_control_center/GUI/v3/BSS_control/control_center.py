@@ -35,113 +35,71 @@ class ControlCenter:
         return None
     
 
-    def getSlotsThatMatchStates(self, matchStates : Dict):
-
-        matchStates_ = {
+    def getSlotsThatMatchStates(self, statesToMatch):
+        statesToMatch_ = {
             "LIMIT_SWITCH"                     : None,
             "LED_STRIP"                        : None,
             "BMS"                              : None,
             "DOOR_LOCK"                        : None,
             "BATTERY_LOCK"                     : None,
-            "BATTERY_CAN_BUS_ERROR"            : None,
+
+            "BATTERY_IN_SLOT"                  : None,
+            "BATTERY_BMS_IS_ON"                : None,
             "BATTERY_IS_WAITING_FOR_ALL_DATA"  : None,
-            "BATTERY_HAS_NO_FATAL_WARNINGS"    : None
-        }
-        ALLOWED_KEYS = matchStates_.keys()
-        matchStates_.update(matchStates)
-        matchStates_ = {key:value for key,value in matchStates_.items()
-                        if key in ALLOWED_KEYS and value is not None}
+            "BATTERY_BMS_HAS_CAN_BUS_ERROR"    : None,
 
-        retrieverFuncs = {
-            "LIMIT_SWITCH"                     : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].limitSwitchState == matchStates_["LIMIT_SWITCH"]},
-            "LED_STRIP"                        : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].ledStripState == matchStates_["LED_STRIP"]},
-            "BMS"                              : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BMS]== matchStates_["BMS"]},
-            "DOOR_LOCK"                        : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.DOOR_LOCK] == matchStates_["DOOR_LOCK"]},
-            "BATTERY_LOCK"                     : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BATTERY_LOCK] == matchStates_["BATTERY_LOCK"]},
-            "BATTERY_CAN_BUS_ERROR"            : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].batteryCanBusErrorState == matchStates_["BATTERY_CAN_BUS_ERROR"]},
-            "BATTERY_IS_WAITING_FOR_ALL_DATA"  : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].battery.waitingForAllData == matchStates_["BATTERY_IS_WAITING_FOR_ALL_DATA"]},
-            "BATTERY_HAS_NO_FATAL_WARNINGS"    : lambda:{slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].battery.warnings.isdisjoint(self.FATAL_BATTERY_WARNINGS)},
-        }
+            "BATTERY_IS_ADDRESSABLE"           : None,
+            "BATTERY_IS_CHARGING"              : None,
+            "BATTERY_IS_CHARGED"               : None,
+            "BATTERY_HAS_WARNINGS"             : None,
+            "BATTERY_IS_DAMAGED"               : None
+        } 
+        ALLOWED_KEYS = statesToMatch_.keys()
+        statesToMatch_.update(statesToMatch)
+        statesToMatch_ = {key:value for key,value in ALLOWED_KEYS if value is not None}
+        res = [slotAddress for slotAddress in self.SLOT_ADDRESSES]
 
-        return set.intersection(*[retrieverFuncs[key]() for key in matchStates_.keys()])
+        for stateKeyword, stateValueToMatch in statesToMatch_.items():
 
+            if len(res) < 1:
+                break
 
-    def getEmptySlots(self):
-        return self.getSlotsThatMatchStates({"LIMIT_SWITCH":1})
+            if stateKeyword in ["LIMIT_SWITCH", "BATTERY_IN_SLOT"]:
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].limitSwitchState == stateValueToMatch]
 
-    def getOccupiedSlots(self):
-        return self.getSlotsThatMatchStates({"LIMIT_SWITCH":0})
-        
+            elif stateKeyword == "LED_STRIP":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].ledStripState == stateValueToMatch]
 
+            elif stateKeyword in ["BMS", "BATTERY_BMS_IS_ON"]:
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BMS] == stateValueToMatch]
 
-        
+            elif stateKeyword == "DOOR_LOCK":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.DOOR_LOCK] == stateValueToMatch]
 
-        
+            elif stateKeyword == "BATTERY_LOCK":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BATTERY_LOCK] == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_WAITING_FOR_ALL_DATA":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.waitingForAllData == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_BMS_HAS_CAN_BUS_ERROR":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.bmsHasCanBusError == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_ADDRESSABLE":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isAddressable == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGING":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isCharging == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGED":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isCharged == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_HAS_WARNINGS":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasWarnings == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_DAMAGED":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isDamaged == stateValueToMatch]
+
+        return res
     
-
-"""
-def getEmptySlots(self)->List[canUtils.MODULE_ADDRESS]:
-    return [slotAddress for slotAddress in self.SLOT_ADDRESSES if not self.modules[slotAddress].battery.inSlot]
-
-def getOccupiedSlots(self)->List[canUtils.MODULE_ADDRESS]:
-    return [slotAddress for slotAddress in self.SLOT_ADDRESSES if self.modules[slotAddress].battery.inSlot]
-
-
-        
-def getOccupiedSlotsWithAddressableAndSafeBatteries(self)->List[canUtils.MODULE_ADDRESS]:
-    return [slotAddress for slotAddress in self.getOccupiedSlots() if not self.modules[slotAddress].battery.bmsHasCanBusError and 
-                                                                        not self.modules[slotAddress].battery.waitingForAllData and 
-                                                                        self.modules[slotAddress].battery.bmsState              and
-                                                                        self.modules[slotAddress].battery.warnings.isdisjoint(self.FATAL_BATTERY_WARNINGS)]
-
-def getOccupiedSlotsWithoutAddressableOrSafeBatteries(self)->List[canUtils.MODULE_ADDRESS]:
-    return [slotAddress for slotAddress in self.getOccupiedSlots() if not self.modules[slotAddress].battery.waitingForAllData and 
-                                                                        self.modules[slotAddress].battery.bmsState              and
-                                                                        (self.modules[slotAddress].battery.bmsHasCanBusError    or
-                                                                        not self.modules[slotAddress].battery.warnings.isdisjoint(self.FATAL_BATTERY_WARNINGS))]
-    
-def turnOffAllLedStrips(self)->None:
-    for slotAddress in self.SLOT_ADDRESSES:
-        self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.OFF)
-    return None
-
-def turnOnAllLedStripsBasedOnSlotState(self)->None:
-    emptySlots = self.getEmptySlots()
-    occupiedSlotsWithoutAddressableOrSafeBatteries = self.getOccupiedSlotsWithoutAddressableOrSafeBatteries()
-    return None
-
-"""
-        
-
-
-
-"""
-def prepareToAdmitBatteryFromUser(self, slotAddress : canUtils.MODULE_ADDRESS):
-    if slotAddress in [self.EIGHT_CHANNEL_RELAY_ADDRESS, self.CONTROL_CENTER_ADDRESS]:
-        raise ValueError("'slotAddress' must be the address of a battery slot module")
-    
-    elif self.modules[slotAddress].limitSwitchState:
-        raise Exception("SLOT MODULE CAN'T FIT ANOTHER BATTERY INSIDE!")
-
-
-    self.modules[slotAddress].unlockBatteryAndDoor()
-    self.modules[slotAddress].setLedStripState(bslot.LED_STRIP_STATE.BLUE)
-    return None
-
-
-def beginBatteryCharge(self, slotAddress : canUtils.MODULE_ADDRESS):
-    if slotAddress in [self.EIGHT_CHANNEL_RELAY_ADDRESS, self.CONTROL_CENTER_ADDRESS]:
-        raise ValueError("'slotAddress' must be the address of a battery slot module")
-    
-    elif not self.modules[slotAddress].limitSwitchState:
-        raise Exception("NO BATTERY TO CHARGE!")
-    
-    elif self.modules[slotAddress].battery.isCharging:
-        raise Exception("BATTERY IS ALREADY CHARGING!")
-    
-    self.modules[slotAddress].setSolenoidState(bslot.SOLENOID_NAME.BMS, 0)
-    QTimer().singleShot(1500, partial(self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState, ecrelay.CHANNEL_NAME(slotAddress-1), 0))
-    QTimer().singleShot(1500, partial(self.modules[slotAddress].setSolenoidState, bslot.SOLENOID_NAME.BMS, 1))
-    return None
-"""
 
