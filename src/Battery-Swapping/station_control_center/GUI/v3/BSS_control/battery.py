@@ -187,10 +187,6 @@ class Battery:
     @property
     def isAddressable(self)->bool:
         return self.inSlot and self.bmsON and not self.waitingForAllData and not self.bmsHasCanBusError
-    
-    @property
-    def addressabilityStatus(self)->uint8_t:
-        return (self.inSlot<<3) | (self.bmsON<<2) | (self.waitingForAllData<<1) | (self.bmsHasCanBusError)
 
     @property
     def voltage(self)->float:
@@ -209,12 +205,20 @@ class Battery:
         return set(self.buffers["warnings"])
     
     @property
+    def fatalWarnings(self)->Set[BATTERY_WARNINGS]:
+        return self.warnings.intersection(self.FATAL_BATTERY_WARNINGS)
+    
+    @property
     def hasWarnings(self)->bool:
         return bool(self.warnings)
+        
+    @property
+    def hasFatalWarnings(self)->bool:
+        return bool(self.fatalWarnings)
     
     @property
     def isDamaged(self)->bool:
-        return not self.warnings.isdisjoint(self.FATAL_BATTERY_WARNINGS)
+        return self.hasFatalWarnings or self.bmsHasCanBusError
     
     @property
     def temps(self)->Dict[str, float]:
@@ -240,13 +244,18 @@ class Battery:
     
     @property
     def timeUntilFullCharge(self)->float:
-        voltage_ = self.voltage
-        if voltage_ < 30: voltage_ = 30
-        elif voltage_ > 42.1: voltage_ = 42.1
+        if self.isCharged:
+            voltage_ = 42.1
+        elif self.voltage < 30: 
+            voltage_ = 30
+        elif self.voltage > 42.1:
+            voltage_ = 42.1
+        else:
+            voltage_ = self.voltage
         return float(batteryVoltage2TimeUntilFullCharge(voltage_))
     
     @property
-    def timeUntilFullChargeInStrFormat(self):
+    def timeUntilFullChargeInStrFormat(self)->str:
         try:
             timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
             timeStr = timeStr.split(":")
@@ -254,6 +263,10 @@ class Battery:
         except ValueError:
             timeStr = "nan"
         return timeStr
+    
+    @property
+    def isDeliverableToUser(self)->bool:
+        return self.isAddressable and self.isCharged and not self.isDamaged
     
     
     def clearBuffers(self)->None:
@@ -275,7 +288,6 @@ class Battery:
         print(f"waitingForAllData: {self.waitingForAllData}")
         print(f"bmsHasCanBusError: {self.bmsHasCanBusError}")
         print(f"isAddressable: {self.isAddressable}")
-        print(f"addressabilityStatus: {self.addressabilityStatus}")
 
         print()
 
@@ -284,13 +296,16 @@ class Battery:
         print(f"current: {self.current}")
         print(f"soc: {self.soc}")
         print(f"warnings: {self.warnings}")
+        print(f"fatalWarnings: {self.fatalWarnings}")
         print(f"hasWarnings: {self.hasWarnings}")
+        print(f"hasFatalWarnings: {self.hasFatalWarnings}")
         print(f"isDamaged: {self.isDamaged}")
         print(f"temps: {self.temps}")
         print(f"maxTemp: {self.maxTemp}")
         print(f"isCharging: {self.isCharging}")
         print(f"isCharged: {self.isCharged}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
+        print(f"isDeliverableToUser: {self.isDeliverableToUser}")
         return None
 
 

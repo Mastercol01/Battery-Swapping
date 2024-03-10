@@ -52,7 +52,9 @@ class ControlCenter:
             "BATTERY_IS_CHARGING"              : None,
             "BATTERY_IS_CHARGED"               : None,
             "BATTERY_HAS_WARNINGS"             : None,
-            "BATTERY_IS_DAMAGED"               : None
+            "BATTERY_HAS_FATAL_WARNINGS"       : None,
+            "BATTERY_IS_DAMAGED"               : None,
+            "BATTERY_IS_DELIVERABLE_TO_USER"   : None
         } 
         ALLOWED_KEYS = statesToMatch_.keys()
         statesToMatch_.update(statesToMatch)
@@ -97,9 +99,42 @@ class ControlCenter:
             elif stateKeyword == "BATTERY_HAS_WARNINGS":
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasWarnings == stateValueToMatch]
 
+            elif stateKeyword == "BATTERY_HAS_FATAL_WARNINGS":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasFatalWarnings == stateValueToMatch]
+
             elif stateKeyword == "BATTERY_IS_DAMAGED":
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isDamaged == stateValueToMatch]
 
+            elif stateKeyword == "BATTERY_IS_DELIVERABLE_TO_USER":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isDeliverableToUser == stateValueToMatch]
+
         return res
+    
+
+    def turnOnLedStripsBasedOnState(self):
+        batteries_notInSlot = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False})
+        batteries_damaged = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED": True})
+        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER": True})
+        other_batteries = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True, "BATTERY_IS_DELIVERABLE_TO_USER":False, "BATTERY_IS_DAMAGED": False})
+
+        for slotAddress in batteries_notInSlot:
+            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.BLUE)
+
+        for slotAddress in batteries_damaged:
+            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.PURPLE)
+
+        for slotAddress in batteries_deliverableToUser:
+            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.GREEN)
+
+        for slotAddress in other_batteries:
+            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.RED)
+
+        return None
+
+
+    def turnOffAllLedStrips(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.OFF)
+        return None
     
 

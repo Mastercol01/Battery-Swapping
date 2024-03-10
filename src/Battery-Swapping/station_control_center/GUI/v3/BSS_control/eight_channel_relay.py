@@ -88,4 +88,15 @@ class EightChannelRelay:
 
     
 
+    def _debugPrint(self):
+        print("----- BUFFERS -----")
+        for key, val in self.buffers.items():
+            print(f"{key}: {val}")
+
+        print()
+
+        print("----- ATTRIBUTES -----")
+        print(f"channelsStates: {self.channelsStates}")
+        return None
+    
     

@@ -164,5 +164,19 @@ class BatterySlot:
         self.setSolenoidState(SOLENOID_NAME.BATTERY_LOCK, 1)
         self.setSolenoidState(SOLENOID_NAME.DOOR_LOCK, 1)
         return None
+    
 
+    def _debugPrint(self):
+        print("----- BUFFERS -----")
+        for key, val in self.buffers.items():
+            print(f"{key}: {val}")
+
+        print()
+
+        print("----- ATTRIBUTES -----")
+        print(f"limitSwitchState: {self.limitSwitchState}")
+        print(f"ledStripState: {self.ledStripState}")
+        print(f"solenoidsStates: {self.solenoidsStates}")
+        print(f"batteryCanBusErrorState: {self.batteryCanBusErrorState}")
+        return None
 
