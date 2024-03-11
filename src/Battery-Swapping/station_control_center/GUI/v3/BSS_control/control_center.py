@@ -1,18 +1,24 @@
 import warnings
-import BSS_control.CanUtils as canUtils
-from typing import List, Dict, Callable
-from BSS_control.battery import BATTERY_WARNINGS
-from BSS_control.CanUtils import can_frame, CanStr
+from typing import Callable
 from BSS_control.eight_channel_relay import EightChannelRelay
-from BSS_control.battery_slot import BatterySlot, LED_STRIP_STATE, SOLENOID_NAME
+
+from BSS_control.battery_slot import (
+    BatterySlot,
+    LED_STRIP_STATE, 
+    SOLENOID_NAME)
+    
+from BSS_control.CanUtils import (
+    can_frame,
+    MODULE_ADDRESS,
+    CanStr)
 
 
 
 class ControlCenter:
-    SLOT_ADDRESSES = [canUtils.MODULE_ADDRESS(i) for i in [1,4,5,8]]
-    CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
-    EIGHT_CHANNEL_RELAY_ADDRESS = canUtils.MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
-    FATAL_BATTERY_WARNINGS = set()
+    SLOT_ADDRESSES = [MODULE_ADDRESS(i) for i in [1,4,5,8]]
+    CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
+    EIGHT_CHANNEL_RELAY_ADDRESS = MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
+
 
     def __init__(self):
         self.modules = {address:BatterySlot(address) for address in self.SLOT_ADDRESSES}
@@ -43,6 +49,83 @@ class ControlCenter:
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.sendCanMsg_eightChannelRelay.connect(sendCanMsg_func)
         return None
     
+def getSlotsThatMatchStates(self, statesToMatch):
+        statesToMatchLogic = [
+            "LIMIT_SWITCH"                     : (True,  "limitSwitchState"),
+            "LED_STRIP"                        : (True,  "ledStripState"), 
+            "BMS"                              : (True,  "bmsSolenoidState"),
+            "DOOR_LOCK"                        : (True,  "doorLockSolenoidState"),
+            "BATTERY_LOCK"                     : (True,  "batteryLockSolenoidState"),
+
+            "BATTERY_IN_SLOT"                  : (True,  "limitSwitchState"),
+            "BATTERY_BMS_IS_ON"                : (True,  "bmsSolenoidState"),
+            "BATTERY_BMS_HAS_CAN_BUS_ERROR"    : (True,  "batteryCanBusErrorState"),
+            "BATTERY_IS_WAITING_FOR_ALL_DATA"  : (False, "waitingForAllData"), 
+                
+
+            "BATTERY_IS_ADDRESSABLE"           : (False, "isAddressable"),
+            "BATTERY_IS_CHARGING"              : (False, "isCharging"),
+            "BATTERY_IS_CHARGED"               : (False, "isCharged"),
+            "BATTERY_IS_CHARGABLE"             : (False, "isChargable"),
+            "BATTERY_HAS_WARNINGS"             : (False, "hasWarnings"),
+            "BATTERY_HAS_FATAL_WARNINGS"       : (False, "isDamaged"),
+            "BATTERY_IS_DAMAGED"               : (False, "hasFatalWarnings"),
+            "BATTERY_IS_DELIVERABLE_TO_USER"   : (False, "hasFatalWarnings")
+        ]
+        statesToMatch_ = {key:value for key,value in statesToMatch.items() if key in ALLOWED_KEYS}
+        res = [slotAddress for slotAddress in self.SLOT_ADDRESSES]
+
+        for stateKeyword, stateValueToMatch in statesToMatch_.items():
+
+            if len(res) < 1:
+                break
+
+            if stateKeyword in ["LIMIT_SWITCH", "BATTERY_IN_SLOT"]:
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].limitSwitchState == stateValueToMatch]
+
+            elif stateKeyword == "LED_STRIP":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].ledStripState == stateValueToMatch]
+
+            elif stateKeyword in ["BMS", "BATTERY_BMS_IS_ON"]:
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BMS.value] == stateValueToMatch]
+
+            elif stateKeyword == "DOOR_LOCK":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.DOOR_LOCK.value] == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_LOCK":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BATTERY_LOCK.value] == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_WAITING_FOR_ALL_DATA":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.waitingForAllData == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_BMS_HAS_CAN_BUS_ERROR":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.bmsHasCanBusError == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_ADDRESSABLE":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isAddressable == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGING":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isCharging == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGED":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isCharged == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGABLE":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isChargable == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_HAS_WARNINGS":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasWarnings == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_HAS_FATAL_WARNINGS":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasFatalWarnings == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_DAMAGED":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isDamaged == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_DELIVERABLE_TO_USER":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isDeliverableToUser == stateValueToMatch]
+
+        return res
 
     def getSlotsThatMatchStates(self, statesToMatch):
         ALLOWED_KEYS = [

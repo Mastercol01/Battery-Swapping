@@ -42,7 +42,7 @@ class DateClockWidget(QWidget):
         return None
 
     def updateDate(self):
-        self.currentDate = date.today().strftime("%B %d, %Y")
+        self.currentDate = datetime.today().strftime("%B %d, %Y")
         month = self.currentDate.split(" ")[0]
         self.currentDate = self.currentDate.replace(month, MONTHS_TO_MESES[month])
         self.dateLabel.setText(self.currentDate)

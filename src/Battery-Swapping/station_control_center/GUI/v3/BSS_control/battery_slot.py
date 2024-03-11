@@ -3,10 +3,15 @@ from array import array
 from typing import List
 from enum import Enum, unique
 from collections import deque
-import BSS_control.battery as batt
-import BSS_control.CanUtils as canUtils
+from BSS_control.battery import Battery
 from PyQt5.QtCore import pyqtSignal, QObject
-from BSS_control.CanUtils import can_frame, ArrayOfBool
+
+from BSS_control.CanUtils import (
+    can_frame,
+    PRIORITY_LEVEL,
+    MODULE_ADDRESS,
+    ACTIVITY_CODE,
+    ArrayOfBool)
 
 
 
@@ -38,21 +43,21 @@ class LED_STRIP_STATE(Enum):
 class BatterySlot:
     DEQUE_MAXLEN = 5
     SIGNALS = BatterySlotSignals()
-    CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
+    CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
 
     SIGNALS_DICT = {
-        canUtils.MODULE_ADDRESS.SLOT1 : SIGNALS.sendCanMsg_slot1,
-        canUtils.MODULE_ADDRESS.SLOT2 : SIGNALS.sendCanMsg_slot2,
-        canUtils.MODULE_ADDRESS.SLOT3 : SIGNALS.sendCanMsg_slot3,
-        canUtils.MODULE_ADDRESS.SLOT4 : SIGNALS.sendCanMsg_slot4,
-        canUtils.MODULE_ADDRESS.SLOT5 : SIGNALS.sendCanMsg_slot5,
-        canUtils.MODULE_ADDRESS.SLOT6 : SIGNALS.sendCanMsg_slot6,
-        canUtils.MODULE_ADDRESS.SLOT7 : SIGNALS.sendCanMsg_slot7,
-        canUtils.MODULE_ADDRESS.SLOT8 : SIGNALS.sendCanMsg_slot8
+        MODULE_ADDRESS.SLOT1 : SIGNALS.sendCanMsg_slot1,
+        MODULE_ADDRESS.SLOT2 : SIGNALS.sendCanMsg_slot2,
+        MODULE_ADDRESS.SLOT3 : SIGNALS.sendCanMsg_slot3,
+        MODULE_ADDRESS.SLOT4 : SIGNALS.sendCanMsg_slot4,
+        MODULE_ADDRESS.SLOT5 : SIGNALS.sendCanMsg_slot5,
+        MODULE_ADDRESS.SLOT6 : SIGNALS.sendCanMsg_slot6,
+        MODULE_ADDRESS.SLOT7 : SIGNALS.sendCanMsg_slot7,
+        MODULE_ADDRESS.SLOT8 : SIGNALS.sendCanMsg_slot8
     }
 
 
-    def __init__(self, moduleAddressToControl : canUtils.MODULE_ADDRESS):
+    def __init__(self, moduleAddressToControl : MODULE_ADDRESS):
         self.moduleAddressToControl = moduleAddressToControl
         self.buffers = {
         "limitSwitchState"        : deque(maxlen=self.DEQUE_MAXLEN),
@@ -62,12 +67,12 @@ class BatterySlot:
                                      SOLENOID_NAME.DOOR_LOCK    : deque(maxlen=self.DEQUE_MAXLEN),
                                      SOLENOID_NAME.BATTERY_LOCK : deque(maxlen=self.DEQUE_MAXLEN)},
         }
-        self.battery = batt.Battery()
+        self.battery = Battery()
         self.currentGlobalTime = 0
         return None
 
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
-        if canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE:
+        if canMsg.activityCode == ACTIVITY_CODE.net2rpy_PERIPHERALS_STATES_OF_BATTERY_SLOT_MODULE:
             self.buffers["limitSwitchState"].append(canMsg.data[0])
             self.buffers["ledStripState"].append(canMsg.data[1])
             self.buffers["solenoidsStates"][SOLENOID_NAME.BMS].append(canMsg.data[2])
@@ -118,6 +123,21 @@ class BatterySlot:
         except ValueError:
             res = np.nan
         return res
+    @property
+    def bmsSolenoidState(self):
+        try: res = self.solenoidsStates[SOLENOID_NAME.BMS]
+        except TypeError: res = np.nan
+        return res    
+    @property
+    def doorLockSolenoidState(self):
+        try: res = self.solenoidsStates[SOLENOID_NAME.DOOR_LOCK]
+        except TypeError: res = np.nan
+        return res
+    @property
+    def batteryLockSolenoidState(self):
+        try: res = self.solenoidsStates[SOLENOID_NAME.BATTERY_LOCK]
+        except TypeError: res = np.nan
+        return res
     
     @property
     def batteryCanBusErrorState(self)->bool | float:
@@ -135,8 +155,8 @@ class BatterySlot:
     
     def setSolenoidState(self, name : SOLENOID_NAME, state : bool)->None:
         data = [name.value, state, 0, 0, 0, 0, 0, 0]
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_SET_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_SET_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
@@ -148,8 +168,8 @@ class BatterySlot:
             raise ValueError("'states' must be a list/array of length 3")
         
         data = [states[0], states[1], states[2], 0, 0, 0, 0, 0]
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_SET_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_SET_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
@@ -158,8 +178,8 @@ class BatterySlot:
 
     def flipSolenoidState(self, name : SOLENOID_NAME):
         data = [name.value, 0, 0, 0, 0, 0, 0, 0]
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_FLIP_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_FLIP_SOLENOID_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
@@ -171,8 +191,8 @@ class BatterySlot:
             raise ValueError("'flipLogic' must be a list/array of length 3")
         
         data = [flipLogic[0], flipLogic[1], flipLogic[2], 0, 0, 0, 0, 0]
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_FLIP_SOLENOIDS_STATES_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
@@ -181,8 +201,8 @@ class BatterySlot:
 
     def setLedStripState(self, state : LED_STRIP_STATE):
         data = [state.value, 0, 0, 0, 0, 0, 0, 0]
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
@@ -190,8 +210,8 @@ class BatterySlot:
         return None
     
     def resetBatteryCanBusErrorAndTimer(self):
-        canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
+        canMsg = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS)
         self.sendCanMsg(canMsg)

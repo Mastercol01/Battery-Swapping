@@ -4,10 +4,12 @@ from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
 from scipy.interpolate import interp1d
-import BSS_control.CanUtils as canUtils
-from BSS_control.CanUtils import can_frame
 
-
+from BSS_control.CanUtils import (
+    can_frame,
+    PRIORITY_LEVEL,
+    MODULE_ADDRESS,
+    ACTIVITY_CODE)
 
 
 batteryVoltagesForInterpolation = 30 + 0.1*np.arange(122)
@@ -83,7 +85,7 @@ class BATTERY_WARNINGS(Enum):
 class Battery:
     DEQUE_MAXLEN = 10
     MAX_CHARGING_CURRENT = 12 #[A]
-    WAITING_FOR_ALL_DATA_TIMEOUT = 4.5 #[s]
+    WAITING_FOR_ALL_DATA_TIMEOUT = 4.33 #[s]
     TOTAL_TIME_UNTIL_FULL_CHARGE = 10672  #[s] (From 30V to 42.1V)
     PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 42.1V)
     SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
@@ -121,7 +123,7 @@ class Battery:
 
     def updateStatesFromCanMsg(self, canMsg : can_frame)->None:
 
-        if canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_0:
+        if canMsg.activityCode == ACTIVITY_CODE.net2rpy_BATTERY_DATA_0:
             self.buffers["soc"].append(canMsg.data[4])
             self.buffers["voltage"].append( 0.1*((canMsg.data[1] << 8) | canMsg.data[0]) )
             self.buffers["current"].append( 0.1*((canMsg.data[3] << 8) | canMsg.data[2]) - 3200 )
@@ -132,7 +134,7 @@ class Battery:
                     self.buffers["warnings"].extend( [BATTERY_WARNINGS(8*i + j) for j in range(8) if bitValues[j]] )
 
 
-        elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_1:
+        elif canMsg.activityCode == ACTIVITY_CODE.net2rpy_BATTERY_DATA_1:
             if canMsg.data[0]:
                 bitValues = [(((1 << j) & canMsg.data[0]) >> j) for j in range(5)]
                 self.buffers["warnings"].extend( [BATTERY_WARNINGS(24 + j) for j in range(5) if bitValues[j]] )
@@ -142,12 +144,12 @@ class Battery:
                 self.buffers["warnings"].extend( [BATTERY_WARNINGS(29 + j) for j in range(3) if bitValues[j]] )
 
 
-        elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_9:
+        elif canMsg.activityCode == ACTIVITY_CODE.net2rpy_BATTERY_DATA_9:
             for i in range(1,5):
                 self.buffers[f"NTC{i}"].append(canMsg.data[i+3] - 40)
 
 
-        elif canMsg.activityCode == canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_10:
+        elif canMsg.activityCode == ACTIVITY_CODE.net2rpy_BATTERY_DATA_10:
             self.buffers["NTC5"].append(  canMsg.data[0] - 40)
             self.buffers["NTC6"].append(  canMsg.data[1] - 40)
             self.buffers["MOSFET"].append(canMsg.data[2] - 40)
@@ -342,28 +344,28 @@ if __name__ == "__main__":
     Battery_obj._debugPrint()
 
     canMsgs = [0, 0, 0, 0]
-    canMsgs[0] = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_0,
-                                            canUtils.MODULE_ADDRESS.CONTROL_CENTER,
-                                            canUtils.MODULE_ADDRESS.SLOT1,
+    canMsgs[0] = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.net2rpy_BATTERY_DATA_0,
+                                            MODULE_ADDRESS.CONTROL_CENTER,
+                                            MODULE_ADDRESS.SLOT1,
                                             data=[0x77,0x01,0x50,0x7D,78,0b10000000,0b10000000,0b10000000])
     
-    canMsgs[1] = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_1,
-                                            canUtils.MODULE_ADDRESS.CONTROL_CENTER,
-                                            canUtils.MODULE_ADDRESS.SLOT1,
+    canMsgs[1] = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.net2rpy_BATTERY_DATA_1,
+                                            MODULE_ADDRESS.CONTROL_CENTER,
+                                            MODULE_ADDRESS.SLOT1,
                                             data=[0b00010000,0b00000100,0,0,0,0,0,0])
     
-    canMsgs[2] = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_9,
-                                            canUtils.MODULE_ADDRESS.CONTROL_CENTER,
-                                            canUtils.MODULE_ADDRESS.SLOT1,
+    canMsgs[2] = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.net2rpy_BATTERY_DATA_9,
+                                            MODULE_ADDRESS.CONTROL_CENTER,
+                                            MODULE_ADDRESS.SLOT1,
                                             data=[0,0,0,0,70,55,60,50])
     
-    canMsgs[3] = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
-                                            canUtils.ACTIVITY_CODE.net2rpy_BATTERY_DATA_10,
-                                            canUtils.MODULE_ADDRESS.CONTROL_CENTER,
-                                            canUtils.MODULE_ADDRESS.SLOT1,
+    canMsgs[3] = can_frame.from_canIdParams(PRIORITY_LEVEL.HIGH_,
+                                            ACTIVITY_CODE.net2rpy_BATTERY_DATA_10,
+                                            MODULE_ADDRESS.CONTROL_CENTER,
+                                            MODULE_ADDRESS.SLOT1,
                                             data=[80,79,45,0,0,0,0,0])
     
 
