@@ -1,11 +1,12 @@
 import numpy as np
 from array import array
 from typing import List
-import CanUtils as canUtils
 from enum import Enum, unique
 from collections import deque
-from CanUtils import can_frame, ArrayOfBool
+import BSS_control.CanUtils as canUtils
 from PyQt5.QtCore import pyqtSignal, QObject
+from BSS_control.CanUtils import can_frame, ArrayOfBool
+
 
 class EightChannelRelaySignals(QObject):
     sendCanMsg_eightChannelRelay = pyqtSignal(str)

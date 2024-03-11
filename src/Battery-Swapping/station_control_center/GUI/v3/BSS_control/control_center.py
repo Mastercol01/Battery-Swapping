@@ -1,10 +1,10 @@
-import CanUtils as canUtils
-from battery import BATTERY_WARNINGS
-from CanUtils import can_frame, CanStr
-from typing import List, Dict, Callable
-from eight_channel_relay import EightChannelRelay
-from battery_slot import BatterySlot, LED_STRIP_STATE, SOLENOID_NAME
 import warnings
+import BSS_control.CanUtils as canUtils
+from typing import List, Dict, Callable
+from BSS_control.battery import BATTERY_WARNINGS
+from BSS_control.CanUtils import can_frame, CanStr
+from BSS_control.eight_channel_relay import EightChannelRelay
+from BSS_control.battery_slot import BatterySlot, LED_STRIP_STATE, SOLENOID_NAME
 
 
 

@@ -1,11 +1,12 @@
 import datetime
 import numpy as np
-import CanUtils as canUtils
 from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
-from CanUtils import can_frame
 from scipy.interpolate import interp1d
+import BSS_control.CanUtils as canUtils
+from BSS_control.CanUtils import can_frame
+
 
 
 
