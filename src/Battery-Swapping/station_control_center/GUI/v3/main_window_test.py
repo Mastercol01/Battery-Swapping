@@ -3,8 +3,8 @@ import serial
 from functools import partial
 from PyQt5.QtWidgets import qApp, QMainWindow
 from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, QTimer
-from control_center import ControlCenter
-import CanUtils as canUtils
+from BSS_control.control_center import ControlCenter
+import BSS_control.CanUtils as canUtils
 
 
 #%%                   DEFINITION OF WORKER CLASS FOR READING SERIAL DATA

@@ -60,6 +60,7 @@ class ControlCenter:
             "BATTERY_IS_ADDRESSABLE"           ,
             "BATTERY_IS_CHARGING"              ,
             "BATTERY_IS_CHARGED"               ,
+            "BATTERY_IS_CHARGABLE"             ,
             "BATTERY_HAS_WARNINGS"             ,
             "BATTERY_HAS_FATAL_WARNINGS"       ,
             "BATTERY_IS_DAMAGED"               ,
@@ -102,6 +103,9 @@ class ControlCenter:
 
             elif stateKeyword == "BATTERY_IS_CHARGED":
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isCharged == stateValueToMatch]
+
+            elif stateKeyword == "BATTERY_IS_CHARGABLE":
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.isChargable == stateValueToMatch]
 
             elif stateKeyword == "BATTERY_HAS_WARNINGS":
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.hasWarnings == stateValueToMatch]

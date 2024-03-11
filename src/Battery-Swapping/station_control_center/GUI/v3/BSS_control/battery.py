@@ -245,6 +245,10 @@ class Battery:
     @property
     def isCharged(self)->bool:
         return self.voltage >= 42 and not self.isCharging
+
+    @property
+    def isChargable(self)->bool:
+        return self.isAddressable and not self.isDamaged and not self.isCharged and not self.isCharging
     
     @property
     def timeUntilFullCharge(self)->float:
@@ -308,6 +312,7 @@ class Battery:
         print(f"maxTemp: {self.maxTemp}")
         print(f"isCharging: {self.isCharging}")
         print(f"isCharged: {self.isCharged}")
+        print(f"isChargable: {self.isChargable}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
 
