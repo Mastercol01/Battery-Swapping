@@ -10,7 +10,14 @@ from PyQt5.QtCore import pyqtSignal, QObject
 
 
 class BatterySlotSignals(QObject):
-    command = pyqtSignal(str)
+    sendCanMsg_slot1 = pyqtSignal(str)
+    sendCanMsg_slot2 = pyqtSignal(str)
+    sendCanMsg_slot3 = pyqtSignal(str)
+    sendCanMsg_slot4 = pyqtSignal(str)
+    sendCanMsg_slot5 = pyqtSignal(str)
+    sendCanMsg_slot6 = pyqtSignal(str)
+    sendCanMsg_slot7 = pyqtSignal(str)
+    sendCanMsg_slot8 = pyqtSignal(str)
 
 @unique
 class SOLENOID_NAME(Enum):
@@ -31,6 +38,17 @@ class BatterySlot:
     DEQUE_MAXLEN = 5
     SIGNALS = BatterySlotSignals()
     CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
+
+    SIGNALS_DICT = {
+        canUtils.MODULE_ADDRESS.SLOT1 : SIGNALS.sendCanMsg_slot1,
+        canUtils.MODULE_ADDRESS.SLOT2 : SIGNALS.sendCanMsg_slot2,
+        canUtils.MODULE_ADDRESS.SLOT3 : SIGNALS.sendCanMsg_slot3,
+        canUtils.MODULE_ADDRESS.SLOT4 : SIGNALS.sendCanMsg_slot4,
+        canUtils.MODULE_ADDRESS.SLOT5 : SIGNALS.sendCanMsg_slot5,
+        canUtils.MODULE_ADDRESS.SLOT6 : SIGNALS.sendCanMsg_slot6,
+        canUtils.MODULE_ADDRESS.SLOT7 : SIGNALS.sendCanMsg_slot7,
+        canUtils.MODULE_ADDRESS.SLOT8 : SIGNALS.sendCanMsg_slot8
+    }
 
 
     def __init__(self, moduleAddressToControl : canUtils.MODULE_ADDRESS):
@@ -58,37 +76,60 @@ class BatterySlot:
         else:
             self.battery.updateStatesFromCanMsg(canMsg)
 
-        self.battery.updateStatesFromBatterySlotModule(self.limitSwitchState, 
-                                                       self.batteryCanBusErrorState,
-                                                       self.solenoidsStates[SOLENOID_NAME.BMS])
+        try:
+            self.battery.updateStatesFromBatterySlotModule(self.limitSwitchState, 
+                                                           self.batteryCanBusErrorState,
+                                                           self.solenoidsStates[SOLENOID_NAME.BMS.value])
+        except TypeError:
+            pass
         return None
+    
+    def updateCurrentGlobalTime(self, newCurrentGlobalTime : float)->None:
+        self.currentGlobalTime = newCurrentGlobalTime
+        self.battery.updateCurrentGlobalTime(newCurrentGlobalTime)
+        return None 
 
 
     @property
-    def limitSwitchState(self)->bool:
-        return bool(round(np.mean(self.buffers["limitSwitchState"])))
+    def limitSwitchState(self)->bool | float:
+        try:
+            res = bool(round(np.mean(self.buffers["limitSwitchState"])))
+        except ValueError:
+            res = np.nan
+        return res
     
     @property
-    def ledStripState(self)->LED_STRIP_STATE:
-        return LED_STRIP_STATE(round(np.mean(self.buffers["ledStripState"])))
+    def ledStripState(self)->LED_STRIP_STATE | float:
+        try:
+            res = LED_STRIP_STATE(round(np.mean(self.buffers["ledStripState"])))
+        except ValueError:
+            res = np.nan
+        return res
     
     @property
-    def solenoidsStates(self)->ArrayOfBool:
-        solenoidsStates_ = array("B",[
-        bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.BMS]))),
-        bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.DOOR_LOCK]))),
-        bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.BATTERY_LOCK])))
-        ])
-        return solenoidsStates_
+    def solenoidsStates(self)->ArrayOfBool | float:
+        try:
+            res = array("B",[
+            bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.BMS]))),
+            bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.DOOR_LOCK]))),
+            bool(round(np.mean(self.buffers["solenoidsStates"][SOLENOID_NAME.BATTERY_LOCK])))
+            ])
+        except ValueError:
+            res = np.nan
+        return res
     
     @property
-    def batteryCanBusErrorState(self)->bool:
-        return bool(round(np.mean(self.buffers["batteryCanBusErrorState"])))
+    def batteryCanBusErrorState(self)->bool | float:
+        try:
+            res = bool(round(np.mean(self.buffers["batteryCanBusErrorState"])))
+        except ValueError:
+            res = np.nan
+        return res
     
 
     
     def sendCanMsg(self, canMsg : can_frame)->None:
-        self.SIGNALS.command.emit(canMsg.to_canStr())
+        self.SIGNALS_DICT[self.moduleAddressToControl].emit(canMsg.to_canStr())
         return None
     
     def setSolenoidState(self, name : SOLENOID_NAME, state : bool)->None:
@@ -138,7 +179,7 @@ class BatterySlot:
         return None
 
     def setLedStripState(self, state : LED_STRIP_STATE):
-        data = [state.value, 0, 0, 0, 0, 0, 0, 0, 0]
+        data = [state.value, 0, 0, 0, 0, 0, 0, 0]
         canMsg = can_frame.from_canIdParams(canUtils.PRIORITY_LEVEL.HIGH_,
                                             canUtils.ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
@@ -167,6 +208,11 @@ class BatterySlot:
     
 
     def _debugPrint(self):
+        print("----MODULE TO CONTROL ----")
+        print(f"moduleAddressToControl: {self.moduleAddressToControl}")
+
+        print()
+
         print("----- BUFFERS -----")
         for key, val in self.buffers.items():
             print(f"{key}: {val}")
@@ -178,5 +224,10 @@ class BatterySlot:
         print(f"ledStripState: {self.ledStripState}")
         print(f"solenoidsStates: {self.solenoidsStates}")
         print(f"batteryCanBusErrorState: {self.batteryCanBusErrorState}")
+
+        print()
+
+        print("-----TIMERS-----")
+        print(f"currentGlobalTime: {self.currentGlobalTime}")
         return None
 

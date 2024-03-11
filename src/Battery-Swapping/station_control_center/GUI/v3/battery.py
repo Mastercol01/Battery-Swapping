@@ -1,8 +1,6 @@
 import datetime
-import warnings
 import numpy as np
 import CanUtils as canUtils
-from CanUtils import uint8_t
 from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
@@ -155,8 +153,14 @@ class Battery:
 
         return None
     
+    def updateCurrentGlobalTime(self, newCurrentGlobalTime : float)->None:
+        self.currentGlobalTime = newCurrentGlobalTime
+        return None
 
     def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, bmsON:bool)->None:
+
+        if any(np.isnan([inSlot, bmsHasCanBusError, bmsON])):
+            return None
 
         if not inSlot:
             self.waitingForAllData = False
@@ -274,7 +278,7 @@ class Battery:
             self.buffers[key].clear()
         return None
     
-    def _debugPrint(self):
+    def _debugPrint(self)->None:
 
         print("----- BUFFERS -----")
         for key, val in self.buffers.items():
@@ -306,6 +310,12 @@ class Battery:
         print(f"isCharged: {self.isCharged}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
+
+        print()
+
+        print("----- TIMERS -----")
+        print(f"currentGlobalTime: {self.currentGlobalTime}")
+        print(f"localTimer: {self.localTimer}")
         return None
 
 

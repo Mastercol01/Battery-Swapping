@@ -3,7 +3,8 @@ import serial
 from functools import partial
 from PyQt5.QtWidgets import qApp, QMainWindow
 from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, QTimer
-from BSS_control.control_center import ControlCenter, canUtils
+from station_control_center.GUI.v3.BSS_control.control_center import ControlCenter
+import station_control_center.GUI.v3.BSS_control.CanUtils as canUtils
 
 
 #%%                   DEFINITION OF WORKER CLASS FOR READING SERIAL DATA
@@ -68,7 +69,8 @@ class MainWindow(QMainWindow):
     
     def time_setup(self):
         self.currentGlobalTime = 0
-        self.globalTimer = QTimer(250)
+        self.globalTimer = QTimer()
+        self.globalTimer.setInterval(250)
         self.globalTimer.timeout.connect(self.updateCurrentGlobalTime)
         return None
     

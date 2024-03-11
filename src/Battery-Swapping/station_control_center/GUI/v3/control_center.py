@@ -1,10 +1,10 @@
-
-from typing import List, Dict
 import CanUtils as canUtils
 from battery import BATTERY_WARNINGS
 from CanUtils import can_frame, CanStr
+from typing import List, Dict, Callable
 from eight_channel_relay import EightChannelRelay
 from battery_slot import BatterySlot, LED_STRIP_STATE, SOLENOID_NAME
+import warnings
 
 
 
@@ -21,44 +21,51 @@ class ControlCenter:
         return None
     
     def updateStatesFromCanStr(self, canStr : CanStr)->None:
-        canMsg = can_frame.from_canStr(canStr)
+        try:
+            canMsg = can_frame.from_canStr(canStr)
+        except Exception as e:
+            warnings.warn(f"WARNING: Exception catched in ControlCenter.updateStatesFromCanStr(): {e}")
+            return None
+        
         if canMsg.destinationAddress == self.CONTROL_CENTER_ADDRESS:
             self.modules[canMsg.originAddress].updateStatesFromCanMsg(canMsg)
         return None
     
-    def updateCurrentGlobalTimeForAllModules(self, newCurrentGlobalTime : float)->None:
+    def updateCurrentGlobalTime(self, newCurrentGlobalTime : float)->None:
         self.currentGlobalTime = newCurrentGlobalTime
+        for address in self.SLOT_ADDRESSES + [self.EIGHT_CHANNEL_RELAY_ADDRESS]:
+            self.modules[address].updateCurrentGlobalTime(newCurrentGlobalTime)
+        return None
+    
+    def connect_sendCanMsg(self, sendCanMsg_func : Callable[[CanStr],None])->None:
         for address in self.SLOT_ADDRESSES:
-            self.modules[address].currentGlobalTime = self.currentGlobalTime
-            self.modules[address].battery.currentGlobalTime = self.currentGlobalTime
-        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].currentGlobalTime = self.currentGlobalTime
+            self.modules[address].SIGNALS_DICT[address].connect(sendCanMsg_func)
+        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.sendCanMsg_eightChannelRelay.connect(sendCanMsg_func)
         return None
     
 
     def getSlotsThatMatchStates(self, statesToMatch):
-        statesToMatch_ = {
-            "LIMIT_SWITCH"                     : None,
-            "LED_STRIP"                        : None,
-            "BMS"                              : None,
-            "DOOR_LOCK"                        : None,
-            "BATTERY_LOCK"                     : None,
+        ALLOWED_KEYS = [
+            "LIMIT_SWITCH"                     ,
+            "LED_STRIP"                        ,
+            "BMS"                              ,
+            "DOOR_LOCK"                        ,
+            "BATTERY_LOCK"                     ,
 
-            "BATTERY_IN_SLOT"                  : None,
-            "BATTERY_BMS_IS_ON"                : None,
-            "BATTERY_IS_WAITING_FOR_ALL_DATA"  : None,
-            "BATTERY_BMS_HAS_CAN_BUS_ERROR"    : None,
+            "BATTERY_IN_SLOT"                  ,
+            "BATTERY_BMS_IS_ON"                ,
+            "BATTERY_IS_WAITING_FOR_ALL_DATA"  ,
+            "BATTERY_BMS_HAS_CAN_BUS_ERROR"    ,
 
-            "BATTERY_IS_ADDRESSABLE"           : None,
-            "BATTERY_IS_CHARGING"              : None,
-            "BATTERY_IS_CHARGED"               : None,
-            "BATTERY_HAS_WARNINGS"             : None,
-            "BATTERY_HAS_FATAL_WARNINGS"       : None,
-            "BATTERY_IS_DAMAGED"               : None,
-            "BATTERY_IS_DELIVERABLE_TO_USER"   : None
-        } 
-        ALLOWED_KEYS = statesToMatch_.keys()
-        statesToMatch_.update(statesToMatch)
-        statesToMatch_ = {key:value for key,value in ALLOWED_KEYS if value is not None}
+            "BATTERY_IS_ADDRESSABLE"           ,
+            "BATTERY_IS_CHARGING"              ,
+            "BATTERY_IS_CHARGED"               ,
+            "BATTERY_HAS_WARNINGS"             ,
+            "BATTERY_HAS_FATAL_WARNINGS"       ,
+            "BATTERY_IS_DAMAGED"               ,
+            "BATTERY_IS_DELIVERABLE_TO_USER"   
+        ]
+        statesToMatch_ = {key:value for key,value in statesToMatch.items() if key in ALLOWED_KEYS}
         res = [slotAddress for slotAddress in self.SLOT_ADDRESSES]
 
         for stateKeyword, stateValueToMatch in statesToMatch_.items():
@@ -73,13 +80,13 @@ class ControlCenter:
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].ledStripState == stateValueToMatch]
 
             elif stateKeyword in ["BMS", "BATTERY_BMS_IS_ON"]:
-                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BMS] == stateValueToMatch]
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BMS.value] == stateValueToMatch]
 
             elif stateKeyword == "DOOR_LOCK":
-                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.DOOR_LOCK] == stateValueToMatch]
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.DOOR_LOCK.value] == stateValueToMatch]
 
             elif stateKeyword == "BATTERY_LOCK":
-                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BATTERY_LOCK] == stateValueToMatch]
+                res = [slotAddress for slotAddress in res if self.modules[slotAddress].solenoidsStates[SOLENOID_NAME.BATTERY_LOCK.value] == stateValueToMatch]
 
             elif stateKeyword == "BATTERY_IS_WAITING_FOR_ALL_DATA":
                 res = [slotAddress for slotAddress in res if self.modules[slotAddress].battery.waitingForAllData == stateValueToMatch]
@@ -116,6 +123,11 @@ class ControlCenter:
         batteries_damaged = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED": True})
         batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER": True})
         other_batteries = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True, "BATTERY_IS_DELIVERABLE_TO_USER":False, "BATTERY_IS_DAMAGED": False})
+
+        print(batteries_notInSlot)
+        print(batteries_damaged)
+        print(batteries_deliverableToUser)
+        print(other_batteries)
 
         for slotAddress in batteries_notInSlot:
             self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.BLUE)

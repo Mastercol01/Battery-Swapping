@@ -7,8 +7,8 @@ from collections import deque
 from CanUtils import can_frame, ArrayOfBool
 from PyQt5.QtCore import pyqtSignal, QObject
 
-class BatterySlotSignals(QObject):
-    command = pyqtSignal(str)
+class EightChannelRelaySignals(QObject):
+    sendCanMsg_eightChannelRelay = pyqtSignal(str)
 
 class CHANNEL_NAME(Enum):
     CHANNEL0 = 0
@@ -22,7 +22,7 @@ class CHANNEL_NAME(Enum):
 
 class EightChannelRelay:
     DEQUE_MAXLEN = 5
-    SIGNALS = BatterySlotSignals()
+    SIGNALS = EightChannelRelaySignals()
     CONTROL_CENTER_ADDRESS = canUtils.MODULE_ADDRESS.CONTROL_CENTER
     EIGHT_CHANNEL_RELAY_ADDRESS = canUtils.MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
 
@@ -37,15 +37,21 @@ class EightChannelRelay:
                 self.buffers[name].append(canMsg.data[name.value])
         return None
     
+    def updateCurrentGlobalTime(self, newCurrentGlobalTime):
+        self.currentGlobalTime = newCurrentGlobalTime
+        return None
 
     @property
     def channelsStates(self)->ArrayOfBool:
-        return array("B", [bool(round(np.mean(self.buffers[name]))) for name in CHANNEL_NAME])
+        try:
+            res = array("B", [bool(round(np.mean(self.buffers[name]))) for name in CHANNEL_NAME])
+        except ValueError:
+            res = np.nan
+        return res
     
 
-
     def sendCanMsg(self, canMsg : can_frame)->None:
-        self.SIGNALS.command.emit(canMsg.to_canStr())
+        self.SIGNALS.sendCanMsg_eightChannelRelay.emit(canMsg.to_canStr())
         return None
     
     def setChannelState(self, name : CHANNEL_NAME, state : bool)->None:
@@ -89,6 +95,11 @@ class EightChannelRelay:
     
 
     def _debugPrint(self):
+        print("----MODULE TO CONTROL ----")
+        print(f"moduleAddressToControl: {self.moduleAddressToControl}")
+
+        print()
+
         print("----- BUFFERS -----")
         for key, val in self.buffers.items():
             print(f"{key}: {val}")
@@ -97,6 +108,11 @@ class EightChannelRelay:
 
         print("----- ATTRIBUTES -----")
         print(f"channelsStates: {self.channelsStates}")
+
+        print()
+
+        print("-----TIMERS-----")
+        print(f"currentGlobalTime: {self.currentGlobalTime}")
         return None
     
     

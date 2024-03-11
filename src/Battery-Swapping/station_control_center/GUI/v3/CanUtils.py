@@ -1,6 +1,7 @@
 from array import array
 from enum import Enum, unique
-from typing import NewType, List, Generic
+from typing import NewType, List
+
 
 uint32_t = NewType("uint32_t", int)
 uint8_t = NewType("uint8_t", int)
