@@ -44,6 +44,8 @@ from BSS_control.thread_workers import (
     SerialReadWorker,
     RfidReadWorker)
 
+from BSS_control.control_center import ControlCenter
+
 
 
 class WINS(Enum):
@@ -72,10 +74,13 @@ class MainWindow(QMainWindow):
     def setup(self):
         self.user = None
         self.attendingUser = False
+        self.ControlCenter_obj = ControlCenter()
+        
         self.globalTimers_setup()
         self.windows_setup()
         self.toolbar_setup()
         self.threadWorkers_setup()
+        self.ControlCenter_setup()
         return None
     
 
@@ -99,6 +104,7 @@ class MainWindow(QMainWindow):
 
     def updateGlobalTimerVars250(self):
         self.currentGlobalTime += 250
+        self.ControlCenter_obj.updateCurrentGlobalTime(self.currentGlobalTime)
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -158,7 +164,7 @@ class MainWindow(QMainWindow):
 
     def threadWorkers_setup(self):
         self.threadpool = QThreadPool()
-        #self.serialReadWorker_setup()
+        self.serialReadWorker_setup()
         self.rfidReadWorker_setup()
         return None
     
@@ -173,7 +179,7 @@ class MainWindow(QMainWindow):
 
         self.serialReadWorker = SerialReadWorker(self.ser)
         self.SIGNALS.terminate_SerialReadWorker.connect(self.serialReadWorker.endRun)
-
+        self.serialReadWorker.signals.serialReadResults.connect(self.ControlCenter_obj.updateStatesFromCanStr)
         self.threadpool.start(self.serialReadWorker)
         return None
     
@@ -184,6 +190,13 @@ class MainWindow(QMainWindow):
         self.threadpool.start(self.rfidReadWorker)
         return None
     
+
+    def ControlCenter_setup(self):
+        self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
+        self.ControlCenter_obj.connect_sendCanMsg(self.sendCanMsg)
+        QTimer.singleShot(5000, self.ControlCenter_obj.std_setup)
+        QTimer.singleShot(10000, self.LockScreenWindow_reset)
+        return None
 
 
 # (1) ------------------------------------------------------ (1)
@@ -237,13 +250,23 @@ class MainWindow(QMainWindow):
         return None
     
 
+
+
+
+
+
+
+    def sendCanMsg(self, canStr):
+        self.ser.write(canStr.encode("utf-8"))
+        return None
+
     def closeEvent(self, event):
+        self.ControlCenter_obj.std_closeEvent()
         self.SIGNALS.terminate_RfidReadWorker.emit()
-        self.SIGNALS.terminate_SerialReadWorker.emit()
-        self.ser.close()
-        print('CLOSING APP')
-        QTimer.singleShot(1000, event.accept)
-        event.accept()
+        self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN..."
+        QTimer.singleShot(2000, self.SIGNALS.terminate_SerialReadWorker.emit)
+        QTimer.singleShot(4000, self.ser.close)
+        QTimer.singleShot(5000, event.accept)
         return None
     
  

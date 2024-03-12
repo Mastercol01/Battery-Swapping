@@ -1,6 +1,11 @@
 import warnings
 from typing import Callable
-from BSS_control.eight_channel_relay import EightChannelRelay
+from functools import partial
+from PyQt5.QtCore import QTimer
+
+from BSS_control.eight_channel_relay import (
+    EightChannelRelay, 
+    CHANNEL_NAME)
 
 from BSS_control.battery_slot import (
     BatterySlot,
@@ -43,12 +48,42 @@ class ControlCenter:
             self.modules[address].updateCurrentGlobalTime(newCurrentGlobalTime)
         return None
     
-    def connect_sendCanMsg(self, sendCanMsg_func : Callable[[CanStr],None])->None:
+    def connect_sendCanMsg(self, sendCanMsg_func : Callable[[CanStr], None])->None:
         for address in self.SLOT_ADDRESSES:
             self.modules[address].SIGNALS_DICT[address].connect(sendCanMsg_func)
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.sendCanMsg_eightChannelRelay.connect(sendCanMsg_func)
         return None
     
+    def setSlotSolenoidState(self, slotAddress : MODULE_ADDRESS, name : SOLENOID_NAME, state : bool)->None:
+        try:
+            self.modules[slotAddress].setSolenoidState(name, state)
+        except AttributeError:
+            Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+        return None
+    
+    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : bool)->None:
+        try:
+            self.modules[slotAddress].setSolenoidsStates(states)
+        except AttributeError:
+            Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+        return None
+    
+    def setSlotLedStripState(self, slotAddress : MODULE_ADDRESS, state : LED_STRIP_STATE)->None:
+        try:
+            self.modules[slotAddress].setLedStripState(state)
+        except AttributeError:
+            Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+        return None    
+    
+    def setRelayChannelState(self, name : CHANNEL_NAME, state : bool)->None:
+        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState(name, state)
+        return None
+    
+    def setRelayChannelStates(self, states : bool)->None:
+        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates(states)
+        return None
+
+
     def getSlotsThatMatchStates(self, statesToMatch):
         statesToMatchLogic = {
             "LIMIT_SWITCH"                     : (True,  "limitSwitchState"),
@@ -88,7 +123,21 @@ class ControlCenter:
                 res = [slotAddress for slotAddress in res if getattr(self.modules[slotAddress].battery, attrName) == stateValueToMatch]
 
         return res
+    
+    
+    def std_setup(self):
+        batteries_inSlot = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True})
+        for slotAddress in batteries_inSlot:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 1)
 
+        self.turnOnLedStripsBasedOnState()
+        QTimer.singleShot(5000, self.turnOffAllLedStrips)
+        return None
+    
+    def std_closeEvent(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+        return None
     
     
 
@@ -100,29 +149,62 @@ class ControlCenter:
                                                         "BATTERY_IS_DELIVERABLE_TO_USER":False, 
                                                         "BATTERY_IS_DAMAGED": False})
 
-        print(batteries_notInSlot)
-        print(batteries_damaged)
-        print(batteries_deliverableToUser)
-        print(other_batteries)
-
         for slotAddress in batteries_notInSlot:
-            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.BLUE)
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
 
         for slotAddress in batteries_damaged:
-            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.PURPLE)
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.PURPLE)
 
         for slotAddress in batteries_deliverableToUser:
-            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.GREEN)
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.GREEN)
 
         for slotAddress in other_batteries:
-            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.RED)
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.RED)
 
         return None
 
 
     def turnOffAllLedStrips(self):
         for slotAddress in self.SLOT_ADDRESSES:
-            self.modules[slotAddress].setLedStripState(LED_STRIP_STATE.OFF)
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
         return None
     
+    def startChargeOfSlotBattery(self, slotAddress):
+
+
+        
+
+        batteryAndDoorSolenoidsAreOn = self.modules[slotAddress].batteryAndDoorSolenoidsAreOn
+        batteryIsChargable = 
+
+        if self.modules[slotAddress].batteryAndDoorSolenoidsAreOn and 
+
+        try:
+            if self.modules[slotAddress].battery.limitSwitchState = False
+            if self.modules[slotAddress].solenoidsStates != [1, 0, 0]:
+                msg = "Battery is not secured (or BMS is off). Ignoring command."
+                warnings.warn(msg)
+                return None
+            elif not self.modules[slotAddress].battery.isChargable:
+                msg = "Battery is not chargable. Ignoring command."
+                warnings.warn(msg)
+                return None
+        except AttributeError:
+            Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+
+        self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+        QTimer.singleShot(330, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 1))
+        QTimer.singleShot(660, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+        return None
+    
+    def finishChargeOf
+
+
+
+
+
+
+
+
+
 

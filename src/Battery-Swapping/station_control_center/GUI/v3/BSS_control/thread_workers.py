@@ -27,7 +27,7 @@ class SerialReadWorker(QRunnable):
             if self.ser.in_waiting > 0:
                 try:
                     line = self.ser.readline().decode("utf-8").rstrip()
-                    self.signals.results.emit(line)
+                    self.signals.serialReadResults.emit(line)
                 except UnicodeDecodeError:
                     pass
         return None

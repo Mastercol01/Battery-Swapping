@@ -147,7 +147,10 @@ class BatterySlot:
             res = np.nan
         return res
     
-
+    @property
+    def batteryAndDoorSolenoidsAreOn(self):
+        res = self.solenoidsStates
+        return res[1] and res[2]
     
     def sendCanMsg(self, canMsg : can_frame)->None:
         self.SIGNALS_DICT[self.moduleAddressToControl].emit(canMsg.to_canStr())
@@ -217,12 +220,12 @@ class BatterySlot:
         self.sendCanMsg(canMsg)
         return None
     
-    def lockBatteryAndDoor(self):
+    def turnOnBatteryAndDoorSolenoids(self):
         self.setSolenoidState(SOLENOID_NAME.BATTERY_LOCK, 0)
         self.setSolenoidState(SOLENOID_NAME.DOOR_LOCK, 0)
         return None
     
-    def unlockBatteryAndDoor(self):
+    def turnOffBatteryAndDoorSolenoids(self):
         self.setSolenoidState(SOLENOID_NAME.BATTERY_LOCK, 1)
         self.setSolenoidState(SOLENOID_NAME.DOOR_LOCK, 1)
         return None
