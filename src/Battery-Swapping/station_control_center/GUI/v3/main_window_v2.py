@@ -101,7 +101,6 @@ class MainWindow(QMainWindow):
         button_action.triggered.connect(self.show_info_window)
         toolbar.addAction(button_action)
         toolbar.addSeparator()
-
         return None
 
     def window_setup(self):
