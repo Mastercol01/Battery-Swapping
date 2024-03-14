@@ -16,14 +16,14 @@ from BSS_control.CanUtils import (
 
 
 class BatterySlotSignals(QObject):
-    sendCanMsg_slot1 = pyqtSignal(str)
-    sendCanMsg_slot2 = pyqtSignal(str)
-    sendCanMsg_slot3 = pyqtSignal(str)
-    sendCanMsg_slot4 = pyqtSignal(str)
-    sendCanMsg_slot5 = pyqtSignal(str)
-    sendCanMsg_slot6 = pyqtSignal(str)
-    sendCanMsg_slot7 = pyqtSignal(str)
-    sendCanMsg_slot8 = pyqtSignal(str)
+    addCanMsgToQueue_slot1 = pyqtSignal(str)
+    addCanMsgToQueue_slot2 = pyqtSignal(str)
+    addCanMsgToQueue_slot3 = pyqtSignal(str)
+    addCanMsgToQueue_slot4 = pyqtSignal(str)
+    addCanMsgToQueue_slot5 = pyqtSignal(str)
+    addCanMsgToQueue_slot6 = pyqtSignal(str)
+    addCanMsgToQueue_slot7 = pyqtSignal(str)
+    addCanMsgToQueue_slot8 = pyqtSignal(str)
 
 @unique
 class SOLENOID_NAME(Enum):
@@ -46,14 +46,14 @@ class BatterySlot:
     CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
 
     SIGNALS_DICT = {
-        MODULE_ADDRESS.SLOT1 : SIGNALS.sendCanMsg_slot1,
-        MODULE_ADDRESS.SLOT2 : SIGNALS.sendCanMsg_slot2,
-        MODULE_ADDRESS.SLOT3 : SIGNALS.sendCanMsg_slot3,
-        MODULE_ADDRESS.SLOT4 : SIGNALS.sendCanMsg_slot4,
-        MODULE_ADDRESS.SLOT5 : SIGNALS.sendCanMsg_slot5,
-        MODULE_ADDRESS.SLOT6 : SIGNALS.sendCanMsg_slot6,
-        MODULE_ADDRESS.SLOT7 : SIGNALS.sendCanMsg_slot7,
-        MODULE_ADDRESS.SLOT8 : SIGNALS.sendCanMsg_slot8
+        MODULE_ADDRESS.SLOT1 : SIGNALS.addCanMsgToQueue_slot1,
+        MODULE_ADDRESS.SLOT2 : SIGNALS.addCanMsgToQueue_slot2,
+        MODULE_ADDRESS.SLOT3 : SIGNALS.addCanMsgToQueue_slot3,
+        MODULE_ADDRESS.SLOT4 : SIGNALS.addCanMsgToQueue_slot4,
+        MODULE_ADDRESS.SLOT5 : SIGNALS.addCanMsgToQueue_slot5,
+        MODULE_ADDRESS.SLOT6 : SIGNALS.addCanMsgToQueue_slot6,
+        MODULE_ADDRESS.SLOT7 : SIGNALS.addCanMsgToQueue_slot7,
+        MODULE_ADDRESS.SLOT8 : SIGNALS.addCanMsgToQueue_slot8
     }
 
 
@@ -152,7 +152,7 @@ class BatterySlot:
         res = self.solenoidsStates
         return res[1] and res[2]
     
-    def sendCanMsg(self, canMsg : can_frame)->None:
+    def addCanMsgToQueue(self, canMsg : can_frame)->None:
         self.SIGNALS_DICT[self.moduleAddressToControl].emit(canMsg.to_canStr())
         return None
     
@@ -163,7 +163,7 @@ class BatterySlot:
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
     
     def setSolenoidsStates(self, states : List[bool]):
@@ -176,7 +176,7 @@ class BatterySlot:
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
 
     def flipSolenoidState(self, name : SOLENOID_NAME):
@@ -186,7 +186,7 @@ class BatterySlot:
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
     
     def flipSolenoidStates(self, flipLogic : List[bool]):
@@ -199,7 +199,7 @@ class BatterySlot:
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
 
     def setLedStripState(self, state : LED_STRIP_STATE):
@@ -209,7 +209,7 @@ class BatterySlot:
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
     
     def resetBatteryCanBusErrorAndTimer(self):
@@ -217,7 +217,7 @@ class BatterySlot:
                                             ACTIVITY_CODE.rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE,
                                             self.moduleAddressToControl,
                                             self.CONTROL_CENTER_ADDRESS)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
 
     

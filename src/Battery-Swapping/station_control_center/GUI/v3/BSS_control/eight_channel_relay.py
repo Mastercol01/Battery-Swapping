@@ -14,7 +14,7 @@ from BSS_control.CanUtils import (
 
 
 class EightChannelRelaySignals(QObject):
-    sendCanMsg_eightChannelRelay = pyqtSignal(str)
+    addCanMsgToQueue_eightChannelRelay = pyqtSignal(str)
 
 class CHANNEL_NAME(Enum):
     CHANNEL0 = 0
@@ -56,8 +56,8 @@ class EightChannelRelay:
         return res
     
 
-    def sendCanMsg(self, canMsg : can_frame)->None:
-        self.SIGNALS.sendCanMsg_eightChannelRelay.emit(canMsg.to_canStr())
+    def addCanMsgToQueue(self, canMsg : can_frame)->None:
+        self.SIGNALS.addCanMsgToQueue_eightChannelRelay.emit(canMsg.to_canStr())
         return None
     
     def setChannelState(self, name : CHANNEL_NAME, state : bool)->None:
@@ -67,7 +67,7 @@ class EightChannelRelay:
                                             self.EIGHT_CHANNEL_RELAY_ADDRESS,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
     
     def setChannelStates(self, states : List[bool])->None:
@@ -76,7 +76,7 @@ class EightChannelRelay:
                                             self.EIGHT_CHANNEL_RELAY_ADDRESS,
                                             self.CONTROL_CENTER_ADDRESS,
                                             states)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
 
     def flipChannelState(self, name : CHANNEL_NAME)->None:
@@ -86,7 +86,7 @@ class EightChannelRelay:
                                             self.EIGHT_CHANNEL_RELAY_ADDRESS,
                                             self.CONTROL_CENTER_ADDRESS,
                                             data)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
     
     def flipChannelStates(self, flipLogic : List[bool])->None:
@@ -95,7 +95,7 @@ class EightChannelRelay:
                                             self.EIGHT_CHANNEL_RELAY_ADDRESS,
                                             self.CONTROL_CENTER_ADDRESS,
                                             flipLogic)
-        self.sendCanMsg(canMsg)
+        self.addCanMsgToQueue(canMsg)
         return None
 
     
@@ -120,7 +120,7 @@ class EightChannelRelay:
         print(f"currentGlobalTime: {self.currentGlobalTime}")
 
         print()
-        
+
         return None
     
     

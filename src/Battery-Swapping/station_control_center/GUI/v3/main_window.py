@@ -118,6 +118,7 @@ class MainWindow(QMainWindow):
     def updateGlobalTimerVars250(self):
         self.currentGlobalTime += 250
         self.ControlCenter_obj.updateCurrentGlobalTime(self.currentGlobalTime)
+        self.ControlCenter_obj.sendCanMsg()
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -190,7 +191,7 @@ class MainWindow(QMainWindow):
     def serialReadWorker_setup(self):
         self.serialReadWorker = SerialReadWorker()
         self.SIGNALS.terminate_SerialReadWorker.connect(self.serialReadWorker.endRun)
-        self.ControlCenter_obj.connect_sendCanMsg(self.serialReadWorker.sendCanMsg)
+        self.ControlCenter_obj.SIGNALS.sendCanMsg.connect(self.serialReadWorker.sendCanMsg)
         self.serialReadWorker.signals.serialLaunchFailure.connect(self.serialLaunchFailure)
         self.serialReadWorker.signals.serialReadResults.connect(self.ControlCenter_obj.updateStatesFromCanStr)
         self.threadpool.start(self.serialReadWorker)

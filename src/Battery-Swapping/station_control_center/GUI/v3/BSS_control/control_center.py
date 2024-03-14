@@ -1,7 +1,13 @@
 import warnings
+from collections import deque
 from functools import partial
-from PyQt5.QtCore import QTimer
 from typing import Callable, List
+
+
+from PyQt5.QtCore import (
+    QTimer,
+    QObject,
+    pyqtSignal)
 
 from BSS_control.eight_channel_relay import (
     EightChannelRelay, 
@@ -17,20 +23,29 @@ from BSS_control.CanUtils import (
     MODULE_ADDRESS,
     CanStr)
 
-
+class ControlCenterSignals(QObject):
+    sendCanMsg = pyqtSignal(str)
 
 class ControlCenter:
+    SIGNALS = ControlCenterSignals()
     SLOT_ADDRESSES = [MODULE_ADDRESS(i) for i in [1,4,5,8]]
     CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
     EIGHT_CHANNEL_RELAY_ADDRESS = MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
     
 
-
     def __init__(self):
         self.modules = {address:BatterySlot(address) for address in self.SLOT_ADDRESSES}
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS] = EightChannelRelay()
+        self.canMsgQueue = deque([])
         self.currentGlobalTime = 0
+        self.connect_addCanMsgToQueue()
         return None
+    def connect_addCanMsgToQueue(self)->None:
+        for address in self.SLOT_ADDRESSES:
+            self.modules[address].SIGNALS_DICT[address].connect(self.canMsgQueue.appendleft)
+        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.addCanMsgToQueue_eightChannelRelay.connect(self.canMsgQueue.appendleft)
+        return None
+    
     
     def updateStatesFromCanStr(self, canStr : CanStr)->None:
         try:
@@ -49,15 +64,15 @@ class ControlCenter:
             self.modules[address].updateCurrentGlobalTime(newCurrentGlobalTime)
         return None
     
-    def connect_sendCanMsg(self, sendCanMsg_func : Callable[[CanStr], None])->None:
-        for address in self.SLOT_ADDRESSES:
-            self.modules[address].SIGNALS_DICT[address].connect(sendCanMsg_func)
-        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.sendCanMsg_eightChannelRelay.connect(sendCanMsg_func)
+    def sendCanMsg(self):
+        if self.canMsgQueue:
+            self.SIGNALS.sendCanMsg.emit(self.canMsgQueue.pop())
         return None
     
-    def setSlotSolenoidState(self, slotAddress : MODULE_ADDRESS, name : SOLENOID_NAME, state : bool, delay : int = None)->None:
+
+    def setSlotSolenoidState(self, slotAddress : MODULE_ADDRESS, name : SOLENOID_NAME, state : bool, delay : int = 0)->None:
         try:
-            if isinstance(delay, int):
+            if delay > 0:
                 QTimer.singleShot(delay, partial(self.modules[slotAddress].setSolenoidState, name, state))
             else:
                 self.modules[slotAddress].setSolenoidState(name, state)
@@ -65,9 +80,9 @@ class ControlCenter:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None
     
-    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : List[bool], delay : int | None = None)->None:
+    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : List[bool], delay : int = 0)->None:
         try:
-            if isinstance(delay, int):
+            if delay > 0:
                 QTimer.singleShot(delay, partial(self.modules[slotAddress].setSolenoidsStates, states))
             else:
                 self.modules[slotAddress].setSolenoidsStates(states)
@@ -75,9 +90,9 @@ class ControlCenter:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None
     
-    def setSlotLedStripState(self, slotAddress : MODULE_ADDRESS, state : LED_STRIP_STATE, delay : int | None = None)->None:
+    def setSlotLedStripState(self, slotAddress : MODULE_ADDRESS, state : LED_STRIP_STATE, delay : int = 0)->None:
         try:
-            if isinstance(delay, int):
+            if delay > 0:
                 QTimer.singleShot(delay, partial(self.modules[slotAddress].setLedStripState, state))
             else:
                 self.modules[slotAddress].setLedStripState(state)
@@ -85,17 +100,17 @@ class ControlCenter:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None    
     
-    def setRelayChannelState(self, name : CHANNEL_NAME, state : bool, delay : int | None = None)->None:
-        if isinstance(delay, int):
+    def setRelayChannelState(self, name : CHANNEL_NAME, state : bool, delay : int = 0)->None:
+        if delay > 0:
             QTimer.singleShot(delay, partial(self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState, name, state))
         else:
             self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState(name, state)
         return None
     
-    def setRelayChannelStates(self, states : List[bool], delay : int | None = None)->None:
-        if isinstance(delay, int):
+    def setRelayChannelStates(self, states : List[bool], delay : int = 0)->None:
+        if delay > 0:
             QTimer.singleShot(delay, partial(self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates, states))
-        else:
+        else: 
             self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates(states)
         return None
 
@@ -142,48 +157,24 @@ class ControlCenter:
     
     
     def std_setup(self):
-        delay = None
-        delayIncrease = 250
-        filledSlots = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True})
-        emptySlots  = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False})
-        
-        for i, slotAddress in enumerate(filledSlots):
-            self.setSlotSolenoidStates(slotAddress, [1,0,0], delay)
-            delay = delayIncrease*(i+1)
+      
+        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True}):
+            self.setSlotSolenoidStates(slotAddress, [1,0,0])
 
-        if delay is None:
-            for i, slotAddress in enumerate(emptySlots):
-                self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
-                delay = delayIncrease*(i+1)
-        else:
-            for i, slotAddress in enumerate(emptySlots):
-                    self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
-                    delay = delay + delayIncrease*(i+1)
-
+        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False}):
+            self.setSlotSolenoidStates(slotAddress, [0,0,0])
         
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
 
         for i, slotAddress in enumerate(self.SLOT_ADDRESSES):
             QTimer.singleShot(2500, self.modules[slotAddress]._debugPrint)
-            #QTimer.singleShot(6000 + 500*i, self.modules[slotAddress].battery._debugPrint)
+            QTimer.singleShot(6000 + 500*i, self.modules[slotAddress].battery._debugPrint)
         return None
     
     def std_closeEvent(self):
-        # self.turnOffAllLedStrips()
-        delay = None
-        delayIncrease = 250
-        for i, slotAddress in enumerate(self.SLOT_ADDRESSES):
-            self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
-            delay = delayIncrease*(i+1)
-
-        #for slotAddress in self.SLOT_ADDRESSES:
-        #    self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
-        #    self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
-        
-        #self.finishChargeOfSlotBatteriesIfAllowable()
-
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.setSlotSolenoidStates(slotAddress, [0,0,0])
         return None
-    
     
 
     def turnOnLedStripsBasedOnState(self):
@@ -225,9 +216,9 @@ class ControlCenter:
 
         if batteryIsChargable and batteryAndDoorSolenoidsAreOn and not batteryRelayChannelIsOn:
             # We charge batteries that are chargable, secured in their slot, and not already charging.
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(500, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 1))
-            QTimer.singleShot(1000, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=500)
             return None
 
         elif not batteryAndDoorSolenoidsAreOn:
@@ -269,9 +260,9 @@ class ControlCenter:
         elif batteryBmsHasCanBusError and batteryBmsIsOn and batteryRelayChannelIsOn:
             # In the case that the battery becomes incomunicated with the station while charging,
             # we forzably stop the charging process.
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(10000, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 0))
-            QTimer.singleShot(10500, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=10500)
 
             msg = f"WARNING: Battery{slotAddress} has become incomunicated with the station (bmsHasCanBusError == True)"
             msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
@@ -282,9 +273,9 @@ class ControlCenter:
         elif batteryIsCharging and (batteryHasFatalWarnings or forcedStop):
             # If the battery develops "fatal warnings" during charging, we forzably
             # stop the charging process. We also stop it if it is explicitly enforced by the developer.
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(10000, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 0))
-            QTimer.singleShot(10500, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=10500)
 
             if forcedStop:
                 msg = f"WARNING: PERFORMING MANUAL FORCED STOP OF THE CHARGING PROCESS FOR Battery{slotAddress}."
@@ -297,9 +288,9 @@ class ControlCenter:
         
         elif batteryIsCharged and batteryRelayChannelIsOn:
             # When the battery has finished its charging process, we shut down the charger in the correct way.
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(500, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 0))
-            QTimer.singleShot(1000, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=500)
             return None
         
         return None
