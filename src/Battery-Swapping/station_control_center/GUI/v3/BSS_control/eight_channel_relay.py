@@ -101,8 +101,7 @@ class EightChannelRelay:
     
 
     def _debugPrint(self):
-        print("----MODULE TO CONTROL ----")
-        print(f"moduleAddressToControl: {self.EIGHT_CHANNEL_RELAY_ADDRESS}")
+        print(f"-------- MODULE TO CONTROL: {self.EIGHT_CHANNEL_RELAY_ADDRESS} ---------")
 
         print()
 
@@ -121,6 +120,7 @@ class EightChannelRelay:
         print(f"currentGlobalTime: {self.currentGlobalTime}")
 
         print()
+        
         return None
     
     

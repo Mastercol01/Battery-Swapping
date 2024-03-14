@@ -92,7 +92,9 @@ class Battery:
     FATAL_BATTERY_WARNINGS = set()
    
 
-    def __init__(self):
+    def __init__(self, moduleAddressToControl):
+        self.moduleAddressToControl = moduleAddressToControl
+
         self.buffers = {
             "voltage"  : deque(maxlen=self.DEQUE_MAXLEN),
             "current"  : deque(maxlen=self.DEQUE_MAXLEN),
@@ -287,6 +289,12 @@ class Battery:
     
     def _debugPrint(self)->None:
 
+        print()
+
+        print(f"--------- BATTERY OF MODULE:  {self.moduleAddressToControl} ---------")
+  
+        print()
+
         print("----- BUFFERS -----")
         for key, val in self.buffers.items():
             print(f"{key}: {val}")
@@ -326,6 +334,7 @@ class Battery:
         print(f"localTimer: {self.localTimer}")
 
         print()
+
         return None
 
 

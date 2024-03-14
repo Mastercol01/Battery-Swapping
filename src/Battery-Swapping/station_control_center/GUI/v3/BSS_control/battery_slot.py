@@ -67,7 +67,7 @@ class BatterySlot:
                                      SOLENOID_NAME.DOOR_LOCK    : deque(maxlen=self.DEQUE_MAXLEN),
                                      SOLENOID_NAME.BATTERY_LOCK : deque(maxlen=self.DEQUE_MAXLEN)},
         }
-        self.battery = Battery()
+        self.battery = Battery(self.moduleAddressToControl)
         self.currentGlobalTime = 0
         return None
 
@@ -219,22 +219,14 @@ class BatterySlot:
                                             self.CONTROL_CENTER_ADDRESS)
         self.sendCanMsg(canMsg)
         return None
-    
-    def turnOnBatteryAndDoorSolenoids(self):
-        self.setSolenoidState(SOLENOID_NAME.BATTERY_LOCK, 0)
-        self.setSolenoidState(SOLENOID_NAME.DOOR_LOCK, 0)
-        return None
-    
-    def turnOffBatteryAndDoorSolenoids(self):
-        self.setSolenoidState(SOLENOID_NAME.BATTERY_LOCK, 1)
-        self.setSolenoidState(SOLENOID_NAME.DOOR_LOCK, 1)
-        return None
+
     
 
     def _debugPrint(self):
-        print("----MODULE TO CONTROL ----")
-        print(f"moduleAddressToControl: {self.moduleAddressToControl}")
+        print()
 
+        print(f"--------- MODULE TO CONTROL:  {self.moduleAddressToControl} ---------")
+  
         print()
 
         print("----- BUFFERS -----")
@@ -255,5 +247,6 @@ class BatterySlot:
         print(f"currentGlobalTime: {self.currentGlobalTime}")
 
         print()
+
         return None
 

@@ -86,15 +86,14 @@ class MainWindow(QMainWindow):
         self.attendingUser = False
         self.ControlCenter_obj = ControlCenter()
         
-        
         self.globalTimers_setup()
         self.windows_setup()
         self.toolbar_setup()
         self.threadWorkers_setup()
-        self.ControlCenter_setup()
 
+        QTimer.singleShot(10000, self.ControlCenter_obj.std_setup)
         self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
-        QTimer.singleShot(12000, self.LockScreenWindow_reset)
+        QTimer.singleShot(20000, self.LockScreenWindow_reset)
         return None
     
 
@@ -209,9 +208,6 @@ class MainWindow(QMainWindow):
         return None
     
 
-    def ControlCenter_setup(self):
-        QTimer.singleShot(10000, self.ControlCenter_obj.std_setup)
-        return None
 
 
 # (1) ------------------------------------------------------ (1)
@@ -289,15 +285,18 @@ class MainWindow(QMainWindow):
 
 
 
+    def readyToCloseTrue(self):
+        self.readyToClose = True
+        return None
     
 
     def exitCall(self):
         self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
         self.ControlCenter_obj.std_closeEvent()
         self.SIGNALS.terminate_RfidReadWorker.emit()
-        self.SIGNALS.terminate_SerialReadWorker.emit()
-        self.readyToClose = True
-        QTimer.singleShot(5000, self.close)
+        QTimer.singleShot(3000, self.SIGNALS.terminate_SerialReadWorker.emit)
+        QTimer.singleShot(8000, self.readyToCloseTrue)
+        QTimer.singleShot(8500, self.close)
         return None
 
 

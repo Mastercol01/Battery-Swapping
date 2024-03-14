@@ -1,7 +1,7 @@
 import warnings
-from typing import Callable
 from functools import partial
 from PyQt5.QtCore import QTimer
+from typing import Callable, List
 
 from BSS_control.eight_channel_relay import (
     EightChannelRelay, 
@@ -23,6 +23,7 @@ class ControlCenter:
     SLOT_ADDRESSES = [MODULE_ADDRESS(i) for i in [1,4,5,8]]
     CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
     EIGHT_CHANNEL_RELAY_ADDRESS = MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
+    
 
 
     def __init__(self):
@@ -54,33 +55,48 @@ class ControlCenter:
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.sendCanMsg_eightChannelRelay.connect(sendCanMsg_func)
         return None
     
-    def setSlotSolenoidState(self, slotAddress : MODULE_ADDRESS, name : SOLENOID_NAME, state : bool)->None:
+    def setSlotSolenoidState(self, slotAddress : MODULE_ADDRESS, name : SOLENOID_NAME, state : bool, delay : int = None)->None:
         try:
-            self.modules[slotAddress].setSolenoidState(name, state)
+            if isinstance(delay, int):
+                QTimer.singleShot(delay, partial(self.modules[slotAddress].setSolenoidState, name, state))
+            else:
+                self.modules[slotAddress].setSolenoidState(name, state)
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None
     
-    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : bool)->None:
+    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : List[bool], delay : int | None = None)->None:
         try:
-            self.modules[slotAddress].setSolenoidsStates(states)
+            if isinstance(delay, int):
+                QTimer.singleShot(delay, partial(self.modules[slotAddress].setSolenoidsStates, states))
+            else:
+                self.modules[slotAddress].setSolenoidsStates(states)
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None
     
-    def setSlotLedStripState(self, slotAddress : MODULE_ADDRESS, state : LED_STRIP_STATE)->None:
+    def setSlotLedStripState(self, slotAddress : MODULE_ADDRESS, state : LED_STRIP_STATE, delay : int | None = None)->None:
         try:
-            self.modules[slotAddress].setLedStripState(state)
+            if isinstance(delay, int):
+                QTimer.singleShot(delay, partial(self.modules[slotAddress].setLedStripState, state))
+            else:
+                self.modules[slotAddress].setLedStripState(state)
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None    
     
-    def setRelayChannelState(self, name : CHANNEL_NAME, state : bool)->None:
-        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState(name, state)
+    def setRelayChannelState(self, name : CHANNEL_NAME, state : bool, delay : int | None = None)->None:
+        if isinstance(delay, int):
+            QTimer.singleShot(delay, partial(self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState, name, state))
+        else:
+            self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelState(name, state)
         return None
     
-    def setRelayChannelStates(self, states : bool)->None:
-        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates(states)
+    def setRelayChannelStates(self, states : List[bool], delay : int | None = None)->None:
+        if isinstance(delay, int):
+            QTimer.singleShot(delay, partial(self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates, states))
+        else:
+            self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].setChannelStates(states)
         return None
 
 
@@ -126,24 +142,45 @@ class ControlCenter:
     
     
     def std_setup(self):
-        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True}):
-            self.setSlotSolenoidStates(slotAddress, [1,0,0])
+        delay = None
+        delayIncrease = 250
+        filledSlots = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True})
+        emptySlots  = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False})
+        
+        for i, slotAddress in enumerate(filledSlots):
+            self.setSlotSolenoidStates(slotAddress, [1,0,0], delay)
+            delay = delayIncrease*(i+1)
 
-        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False}):
-            self.setSlotSolenoidStates(slotAddress, [0,0,0])
+        if delay is None:
+            for i, slotAddress in enumerate(emptySlots):
+                self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
+                delay = delayIncrease*(i+1)
+        else:
+            for i, slotAddress in enumerate(emptySlots):
+                    self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
+                    delay = delay + delayIncrease*(i+1)
 
-        for slotAddress in self.SLOT_ADDRESSES:
-            self.modules[slotAddress]._debugPrint()
+        
+        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
+
+        for i, slotAddress in enumerate(self.SLOT_ADDRESSES):
+            QTimer.singleShot(2500, self.modules[slotAddress]._debugPrint)
+            #QTimer.singleShot(6000 + 500*i, self.modules[slotAddress].battery._debugPrint)
         return None
     
     def std_closeEvent(self):
-        self.turnOffAllLedStrips()
+        # self.turnOffAllLedStrips()
+        delay = None
+        delayIncrease = 250
+        for i, slotAddress in enumerate(self.SLOT_ADDRESSES):
+            self.setSlotSolenoidStates(slotAddress, [0,0,0], delay)
+            delay = delayIncrease*(i+1)
 
-        for slotAddress in self.SLOT_ADDRESSES:
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+        #for slotAddress in self.SLOT_ADDRESSES:
+        #    self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
+        #    self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
         
-        self.finishChargeOfSlotBatteriesIfAllowable()
+        #self.finishChargeOfSlotBatteriesIfAllowable()
 
         return None
     
@@ -189,8 +226,8 @@ class ControlCenter:
         if batteryIsChargable and batteryAndDoorSolenoidsAreOn and not batteryRelayChannelIsOn:
             # We charge batteries that are chargable, secured in their slot, and not already charging.
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(250, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 1))
-            QTimer.singleShot(750, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            QTimer.singleShot(500, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 1))
+            QTimer.singleShot(1000, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
             return None
 
         elif not batteryAndDoorSolenoidsAreOn:
@@ -261,8 +298,8 @@ class ControlCenter:
         elif batteryIsCharged and batteryRelayChannelIsOn:
             # When the battery has finished its charging process, we shut down the charger in the correct way.
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-            QTimer.singleShot(250, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 0))
-            QTimer.singleShot(750, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            QTimer.singleShot(500, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 0))
+            QTimer.singleShot(1000, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
             return None
         
         return None
