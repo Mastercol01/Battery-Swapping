@@ -4,6 +4,7 @@ from typing import List
 from enum import Enum, unique
 from collections import deque
 from PyQt5.QtCore import pyqtSignal, QObject
+
 from BSS_control.CanUtils import (
     can_frame,
     PRIORITY_LEVEL,
@@ -118,6 +119,8 @@ class EightChannelRelay:
 
         print("-----TIMERS-----")
         print(f"currentGlobalTime: {self.currentGlobalTime}")
+
+        print()
         return None
     
     

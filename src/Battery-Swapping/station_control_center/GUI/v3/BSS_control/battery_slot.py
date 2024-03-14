@@ -253,5 +253,7 @@ class BatterySlot:
 
         print("-----TIMERS-----")
         print(f"currentGlobalTime: {self.currentGlobalTime}")
+
+        print()
         return None
 

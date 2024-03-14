@@ -1,3 +1,4 @@
+import os
 import serial
 import warnings
 from enum import Enum
@@ -48,6 +49,14 @@ from BSS_control.control_center import ControlCenter
 
 
 
+IMGS_PATH = os.path.join(os.path.dirname(__file__), "Images_and_Icons")
+SYMBOLS_PATHS = {
+    "ATTENTION" : os.path.join(IMGS_PATH, "attention_symbol.png"),
+    "ERROR_404" : os.path.join(IMGS_PATH, "error_404.png"),
+}
+
+
+
 class WINS(Enum):
     INFO_WINDOW = 0
     LOCK_SCREEN = 1
@@ -73,14 +82,19 @@ class MainWindow(QMainWindow):
 
     def setup(self):
         self.user = None
+        self.readyToClose = False
         self.attendingUser = False
         self.ControlCenter_obj = ControlCenter()
+        
         
         self.globalTimers_setup()
         self.windows_setup()
         self.toolbar_setup()
         self.threadWorkers_setup()
         self.ControlCenter_setup()
+
+        self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
+        QTimer.singleShot(12000, self.LockScreenWindow_reset)
         return None
     
 
@@ -114,6 +128,12 @@ class MainWindow(QMainWindow):
         if self.currentWindow == WINS.INFO_WINDOW:
             if self.currentGlobalTime - self.timeInsideAboutUsSection > 30000:
                 self.show_window[WINS.LOCK_SCREEN]()
+
+        if not self.attendingUser:
+            #self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable()
+            #QTimer.singleShot(1000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
+            pass
+
         return None
 
 
@@ -169,39 +189,34 @@ class MainWindow(QMainWindow):
         return None
     
     def serialReadWorker_setup(self):
-        try:
-            self.ser = serial.Serial(port="/dev/ttyUSB0", baudrate=115200, timeout=1.0)
-            self.ser.reset_input_buffer()
-            print("SERIAL LAUNCH SUCCESFUL")
-        except:
-            print("FAILURE TO LAUNCH SERIAL")
-            self.close()
-
-        self.serialReadWorker = SerialReadWorker(self.ser)
+        self.serialReadWorker = SerialReadWorker()
         self.SIGNALS.terminate_SerialReadWorker.connect(self.serialReadWorker.endRun)
+        self.ControlCenter_obj.connect_sendCanMsg(self.serialReadWorker.sendCanMsg)
+        self.serialReadWorker.signals.serialLaunchFailure.connect(self.serialLaunchFailure)
         self.serialReadWorker.signals.serialReadResults.connect(self.ControlCenter_obj.updateStatesFromCanStr)
         self.threadpool.start(self.serialReadWorker)
+        return None
+    def serialLaunchFailure(self):
+        self.readyToClose = True
+        self.close()
         return None
     
     def rfidReadWorker_setup(self):
         self.rfidReadWorker = RfidReadWorker()
         self.SIGNALS.terminate_RfidReadWorker.connect(self.rfidReadWorker.endRun)
-        self.rfidReadWorker.signals.rfidReadResults.connect(self.LockScreenWindow_initWorkFlow)
+        self.rfidReadWorker.signals.rfidReadResults.connect(self.LockScreenWindow_workFlow)
         self.threadpool.start(self.rfidReadWorker)
         return None
     
 
     def ControlCenter_setup(self):
-        self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
-        self.ControlCenter_obj.connect_sendCanMsg(self.sendCanMsg)
-        QTimer.singleShot(5000, self.ControlCenter_obj.std_setup)
-        QTimer.singleShot(10000, self.LockScreenWindow_reset)
+        QTimer.singleShot(10000, self.ControlCenter_obj.std_setup)
         return None
 
 
 # (1) ------------------------------------------------------ (1)
     
-    def LockScreenWindow_initWorkFlow(self, cardId):
+    def LockScreenWindow_workFlow(self, cardId):
         if self.attendingUser:
             return None
         
@@ -237,11 +252,11 @@ class MainWindow(QMainWindow):
         userName = f"{self.user['firstName']} {self.user['lastName']}"
         userFoundMsg = f"BIENVENID@ {userName}"
         self.windows[WINS.LOCK_SCREEN].text = userFoundMsg      
-        QTimer.singleShot(3000, self.LockScreenWindow_reset)
+        QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
         return None
     
 
-    def LockScreenWindow_reset(self, reloadWindow=False):
+    def LockScreenWindow_reset(self, reloadWindow=True):
         resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
         self.windows[WINS.LOCK_SCREEN].text = resetMsg
         if reloadWindow:
@@ -250,23 +265,48 @@ class MainWindow(QMainWindow):
         return None
     
 
-
-
-
-
-
-
-    def sendCanMsg(self, canStr):
-        self.ser.write(canStr.encode("utf-8"))
+    def OptionsPanelWindow_workFlow(self):
         return None
 
-    def closeEvent(self, event):
+    def batteryEntry_workflow(self):
+        freeSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
+
+        if not freeSlots:
+            msg = "¡Lo sentimos! Actualmente no hay slots vacíos disponibles. Vuelva más tarde"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+            self.show_window[WINS.USER_PROMPT_PANEL]()
+            QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
+            
+    def OptionsPanelWindow_reset(self, reloadWindow=True):
+        if reloadWindow:
+            self.show_window[WINS.OPTIONS_PANEL]()
+        self.windows[WINS.USER_PROMPT_PANEL].clearAll()
+        return None
+
+
+
+
+
+    
+
+    def exitCall(self):
+        self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
         self.ControlCenter_obj.std_closeEvent()
         self.SIGNALS.terminate_RfidReadWorker.emit()
-        self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN..."
-        QTimer.singleShot(2000, self.SIGNALS.terminate_SerialReadWorker.emit)
-        QTimer.singleShot(4000, self.ser.close)
-        QTimer.singleShot(5000, event.accept)
+        self.SIGNALS.terminate_SerialReadWorker.emit()
+        self.readyToClose = True
+        QTimer.singleShot(5000, self.close)
+        return None
+
+
+    def closeEvent(self, e):
+        if self.readyToClose:
+            e.accept()
+        else:
+            self.exitCall()
+            e.ignore()
         return None
     
  

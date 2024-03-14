@@ -99,6 +99,11 @@ class UserPromptPanelWindow(QWidget):
                 pass
 
         return None
+    
+    def clearAll(self):
+        self.clearImgs(None)
+        self.text = ""
+        return None
 
 
 

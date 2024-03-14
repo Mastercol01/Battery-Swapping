@@ -239,7 +239,7 @@ class Battery:
     
     @property
     def isCharging(self)->bool:
-        if self.current > 0.1: 
+        if self.current > 0.05: 
             self.isCharging_ = True
         else: 
             self.isCharging_ = False
@@ -324,6 +324,8 @@ class Battery:
         print("----- TIMERS -----")
         print(f"currentGlobalTime: {self.currentGlobalTime}")
         print(f"localTimer: {self.localTimer}")
+
+        print()
         return None
 
 

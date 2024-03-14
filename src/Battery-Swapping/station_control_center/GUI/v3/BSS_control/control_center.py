@@ -88,9 +88,9 @@ class ControlCenter:
         statesToMatchLogic = {
             "LIMIT_SWITCH"                     : (True,  "limitSwitchState"),
             "LED_STRIP"                        : (True,  "ledStripState"), 
-            "BMS"                              : (True,  "bmsSolenoidState"),
-            "DOOR_LOCK"                        : (True,  "doorLockSolenoidState"),
-            "BATTERY_LOCK"                     : (True,  "batteryLockSolenoidState"),
+            "BMS_SOLENOID"                     : (True,  "bmsSolenoidState"),
+            "DOOR_LOCK_SOLENOID"               : (True,  "doorLockSolenoidState"),
+            "BATTERY_LOCK_SOLENOID"            : (True,  "batteryLockSolenoidState"),
 
             "BATTERY_IN_SLOT"                  : (True,  "limitSwitchState"),
             "BATTERY_BMS_IS_ON"                : (True,  "bmsSolenoidState"),
@@ -126,28 +126,36 @@ class ControlCenter:
     
     
     def std_setup(self):
-        batteries_inSlot = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True})
-        for slotAddress in batteries_inSlot:
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 1)
+        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True}):
+            self.setSlotSolenoidStates(slotAddress, [1,0,0])
 
-        self.turnOnLedStripsBasedOnState()
-        QTimer.singleShot(5000, self.turnOffAllLedStrips)
+        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False}):
+            self.setSlotSolenoidStates(slotAddress, [0,0,0])
+
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.modules[slotAddress]._debugPrint()
         return None
     
     def std_closeEvent(self):
+        self.turnOffAllLedStrips()
+
         for slotAddress in self.SLOT_ADDRESSES:
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+        
+        self.finishChargeOfSlotBatteriesIfAllowable()
+
         return None
     
     
 
     def turnOnLedStripsBasedOnState(self):
-        batteries_notInSlot = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False})
-        batteries_damaged = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED": True})
-        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER": True})
-        other_batteries = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True,
-                                                        "BATTERY_IS_DELIVERABLE_TO_USER":False, 
-                                                        "BATTERY_IS_DAMAGED": False})
+        batteries_notInSlot         = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : False })
+        batteries_damaged           = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED"             : True  })
+        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True  })
+        other_batteries             = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : True, 
+                                                                    "BATTERY_IS_DAMAGED"             : False,
+                                                                    "BATTERY_IS_DELIVERABLE_TO_USER" : False  })
 
         for slotAddress in batteries_notInSlot:
             self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
@@ -163,41 +171,124 @@ class ControlCenter:
 
         return None
 
-
     def turnOffAllLedStrips(self):
         for slotAddress in self.SLOT_ADDRESSES:
             self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
         return None
     
-    def startChargeOfSlotBattery(self, slotAddress):
-
-
-        
-
-        batteryAndDoorSolenoidsAreOn = self.modules[slotAddress].batteryAndDoorSolenoidsAreOn
-        batteryIsChargable = 
-
-        if self.modules[slotAddress].batteryAndDoorSolenoidsAreOn and 
+    def startChargeOfSlotBatteryIfAllowable(self, slotAddress):
 
         try:
-            if self.modules[slotAddress].battery.limitSwitchState = False
-            if self.modules[slotAddress].solenoidsStates != [1, 0, 0]:
-                msg = "Battery is not secured (or BMS is off). Ignoring command."
-                warnings.warn(msg)
-                return None
-            elif not self.modules[slotAddress].battery.isChargable:
-                msg = "Battery is not chargable. Ignoring command."
-                warnings.warn(msg)
-                return None
+            batteryIsChargable           = self.modules[slotAddress].battery.isChargable
+            batteryAndDoorSolenoidsAreOn = self.modules[slotAddress].batteryAndDoorSolenoidsAreOn
+            batteryRelayChannelIsOn      = self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].channelsStates[slotAddress.value-1]
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+            
 
-        self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
-        QTimer.singleShot(330, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 1))
-        QTimer.singleShot(660, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+        if batteryIsChargable and batteryAndDoorSolenoidsAreOn and not batteryRelayChannelIsOn:
+            # We charge batteries that are chargable, secured in their slot, and not already charging.
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+            QTimer.singleShot(250, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 1))
+            QTimer.singleShot(750, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            return None
+
+        elif not batteryAndDoorSolenoidsAreOn:
+            warnings.warn("WARNING: Battery is chargable but not secured. Ignoring command.")
+            return None
+        
+
         return None
-    
-    def finishChargeOf
+
+
+    def finishChargeOfSlotBatteryIfAllowable(self, slotAddress, forcedStop = False):
+
+        """
+        NOTE: Forcibly interrupting the charge process runs the risk of permanently damaging
+        the battery's charger. However, in some cases it becomes necessary to do so, as
+        charging a damaged battery is a tremendous fire hazard. Better to damage the charger (which
+        will just stop working) than to risk an electrical fire breaking out inside the station.
+        """
+
+        try:
+            batteryIsInSlot          = self.modules[slotAddress].battery.inSlot
+            batteryBmsIsOn           = self.modules[slotAddress].battery.bmsON
+            batteryBmsHasCanBusError = self.modules[slotAddress].battery.bmsHasCanBusError
+            batteryHasFatalWarnings  = self.modules[slotAddress].battery.hasFatalWarnings
+            batteryIsCharging        = self.modules[slotAddress].battery.isCharging
+            batteryIsCharged         = self.modules[slotAddress].battery.isCharged
+            batteryRelayChannelIsOn  = self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].channelsStates[slotAddress.value-1]
+        except AttributeError: 
+            Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
+
+
+        if not batteryIsInSlot or not (batteryBmsIsOn and batteryRelayChannelIsOn):
+            # Either:
+            #  1) The battery is not in the slot
+            #  2) The battery BMS and the Charger are not ON at the same time.
+            # In either case it's not worth continuing the check since the battery could not possibly be charging.
+            return None
+        
+        elif batteryBmsHasCanBusError and batteryBmsIsOn and batteryRelayChannelIsOn:
+            # In the case that the battery becomes incomunicated with the station while charging,
+            # we forzably stop the charging process.
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+            QTimer.singleShot(10000, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 0))
+            QTimer.singleShot(10500, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+
+            msg = f"WARNING: Battery{slotAddress} has become incomunicated with the station (bmsHasCanBusError == True)"
+            msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
+            warnings.warn(msg)
+
+            return None
+
+        elif batteryIsCharging and (batteryHasFatalWarnings or forcedStop):
+            # If the battery develops "fatal warnings" during charging, we forzably
+            # stop the charging process. We also stop it if it is explicitly enforced by the developer.
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+            QTimer.singleShot(10000, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value-1), 0))
+            QTimer.singleShot(10500, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+
+            if forcedStop:
+                msg = f"WARNING: PERFORMING MANUAL FORCED STOP OF THE CHARGING PROCESS FOR Battery{slotAddress}."
+            else:
+                msg = f"WARNING: Battery{slotAddress} has developed fatal warnings (hasFatalWarnings == True)."
+                msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
+
+            warnings.warn(msg)
+            return None
+        
+        elif batteryIsCharged and batteryRelayChannelIsOn:
+            # When the battery has finished its charging process, we shut down the charger in the correct way.
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
+            QTimer.singleShot(250, partial(self.setRelayChannelState, CHANNEL_NAME(slotAddress.value), 0))
+            QTimer.singleShot(750, partial(self.setSlotSolenoidState, slotAddress, SOLENOID_NAME.BMS,  1))
+            return None
+        
+        return None
+
+
+    def startChargeOfSlotBatteriesIfAllowable(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.startChargeOfSlotBatteryIfAllowable(slotAddress)
+        return None
+  
+
+    def finishChargeOfSlotBatteriesIfAllowable(self, forcedStop = False):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.finishChargeOfSlotBatteryIfAllowable(slotAddress, forcedStop)
+        return None
+
+
+
+
+
+
+
+
+
+
+
 
 
 
