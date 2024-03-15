@@ -26,12 +26,53 @@ from BSS_control.CanUtils import (
 class ControlCenterSignals(QObject):
     sendCanMsg = pyqtSignal(str)
 
+    proccessToStartChargeIsActive_slot1 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot2 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot3 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot4 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot5 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot6 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot7 = pyqtSignal(bool)
+    proccessToStartChargeIsActive_slot8 = pyqtSignal(bool)
+
+    proccessToFinishChargeIsActive_slot1 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot2 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot3 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot4 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot5 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot6 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot7 = pyqtSignal(bool)
+    proccessToFinishChargeIsActive_slot8 = pyqtSignal(bool)
+    
+
+
 class ControlCenter:
     SIGNALS = ControlCenterSignals()
     SLOT_ADDRESSES = [MODULE_ADDRESS(i) for i in [1,4,5,8]]
     CONTROL_CENTER_ADDRESS = MODULE_ADDRESS.CONTROL_CENTER
     EIGHT_CHANNEL_RELAY_ADDRESS = MODULE_ADDRESS.EIGHT_CHANNEL_RELAY
+
+    SIGNALS_DICT_START_CHARGE = {
+        MODULE_ADDRESS.SLOT1 : SIGNALS.proccessToStartChargeIsActive_slot1,
+        MODULE_ADDRESS.SLOT2 : SIGNALS.proccessToStartChargeIsActive_slot2,
+        MODULE_ADDRESS.SLOT3 : SIGNALS.proccessToStartChargeIsActive_slot3,
+        MODULE_ADDRESS.SLOT4 : SIGNALS.proccessToStartChargeIsActive_slot4,
+        MODULE_ADDRESS.SLOT5 : SIGNALS.proccessToStartChargeIsActive_slot5,
+        MODULE_ADDRESS.SLOT6 : SIGNALS.proccessToStartChargeIsActive_slot6,
+        MODULE_ADDRESS.SLOT7 : SIGNALS.proccessToStartChargeIsActive_slot7,
+        MODULE_ADDRESS.SLOT8 : SIGNALS.proccessToStartChargeIsActive_slot8
+    }
     
+    SIGNALS_DICT_FINISH_CHARGE = {
+        MODULE_ADDRESS.SLOT1 : SIGNALS.proccessToFinishChargeIsActive_slot1,
+        MODULE_ADDRESS.SLOT2 : SIGNALS.proccessToFinishChargeIsActive_slot1,
+        MODULE_ADDRESS.SLOT3 : SIGNALS.proccessToFinishChargeIsActive_slot3,
+        MODULE_ADDRESS.SLOT4 : SIGNALS.proccessToFinishChargeIsActive_slot4,
+        MODULE_ADDRESS.SLOT5 : SIGNALS.proccessToFinishChargeIsActive_slot5,
+        MODULE_ADDRESS.SLOT6 : SIGNALS.proccessToFinishChargeIsActive_slot6,
+        MODULE_ADDRESS.SLOT7 : SIGNALS.proccessToFinishChargeIsActive_slot7,
+        MODULE_ADDRESS.SLOT8 : SIGNALS.proccessToFinishChargeIsActive_slot8
+    }
 
     def __init__(self):
         self.modules = {address:BatterySlot(address) for address in self.SLOT_ADDRESSES}
@@ -39,11 +80,19 @@ class ControlCenter:
         self.canMsgQueue = deque([])
         self.currentGlobalTime = 0
         self.connect_addCanMsgToQueue()
+        self.connect_startAndFinishChargeProcessSignals()
         return None
+    
     def connect_addCanMsgToQueue(self)->None:
-        for address in self.SLOT_ADDRESSES:
-            self.modules[address].SIGNALS_DICT[address].connect(self.canMsgQueue.appendleft)
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.modules[slotAddress].SIGNALS_DICT[slotAddress].connect(self.canMsgQueue.appendleft)
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].SIGNALS.addCanMsgToQueue_eightChannelRelay.connect(self.canMsgQueue.appendleft)
+        return None
+    
+    def connect_startAndFinishChargeProcessSignals(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.SIGNALS_DICT_START_CHARGE[slotAddress].connect(self.modules[slotAddress].battery.proccessToStartChargeIsActive)
+            self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].connect(self.modules[slotAddress].battery.proccessToFinishChargeIsActive)
         return None
     
     
@@ -56,7 +105,12 @@ class ControlCenter:
         
         if canMsg.destinationAddress == self.CONTROL_CENTER_ADDRESS:
             self.modules[canMsg.originAddress].updateStatesFromCanMsg(canMsg)
+
+        relayChannelStates = self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].channelsStates
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.modules[slotAddress].battery.updateStatesFromControlCenter(relayChannelStates[slotAddress.value-1])
         return None
+    
     
     def updateCurrentGlobalTime(self, newCurrentGlobalTime : float)->None:
         self.currentGlobalTime = newCurrentGlobalTime
@@ -80,7 +134,7 @@ class ControlCenter:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
         return None
     
-    def setSlotSolenoidStates(self, slotAddress : MODULE_ADDRESS, states : List[bool], delay : int = 0)->None:
+    def setSlotSolenoidsStates(self, slotAddress : MODULE_ADDRESS, states : List[bool], delay : int = 0)->None:
         try:
             if delay > 0:
                 QTimer.singleShot(delay, partial(self.modules[slotAddress].setSolenoidsStates, states))
@@ -117,26 +171,31 @@ class ControlCenter:
 
     def getSlotsThatMatchStates(self, statesToMatch):
         statesToMatchLogic = {
-            "LIMIT_SWITCH"                     : (True,  "limitSwitchState"),
-            "LED_STRIP"                        : (True,  "ledStripState"), 
-            "BMS_SOLENOID"                     : (True,  "bmsSolenoidState"),
-            "DOOR_LOCK_SOLENOID"               : (True,  "doorLockSolenoidState"),
-            "BATTERY_LOCK_SOLENOID"            : (True,  "batteryLockSolenoidState"),
+            "LIMIT_SWITCH"                       : (True,  "limitSwitchState"),
+            "LED_STRIP"                          : (True,  "ledStripState"), 
+            "BMS_SOLENOID"                       : (True,  "bmsSolenoidState"),
+            "DOOR_LOCK_SOLENOID"                 : (True,  "doorLockSolenoidState"),
+            "BATTERY_LOCK_SOLENOID"              : (True,  "batteryLockSolenoidState"),
 
-            "BATTERY_IN_SLOT"                  : (True,  "limitSwitchState"),
-            "BATTERY_BMS_IS_ON"                : (True,  "bmsSolenoidState"),
-            "BATTERY_BMS_HAS_CAN_BUS_ERROR"    : (True,  "batteryCanBusErrorState"),
-            "BATTERY_IS_WAITING_FOR_ALL_DATA"  : (False, "waitingForAllData"), 
+            "BATTERY_IN_SLOT"                    : (True,  "limitSwitchState"),
+            "BATTERY_BMS_IS_ON"                  : (True,  "bmsSolenoidState"),
+            "BATTERY_BMS_HAS_CAN_BUS_ERROR"      : (True,  "batteryCanBusErrorState"),
+            "BATTERY_IS_WAITING_FOR_ALL_DATA"    : (False, "waitingForAllData"), 
                 
 
-            "BATTERY_IS_ADDRESSABLE"           : (False, "isAddressable"),
-            "BATTERY_IS_CHARGING"              : (False, "isCharging"),
-            "BATTERY_IS_CHARGED"               : (False, "isCharged"),
-            "BATTERY_IS_CHARGABLE"             : (False, "isChargable"),
-            "BATTERY_HAS_WARNINGS"             : (False, "hasWarnings"),
-            "BATTERY_HAS_FATAL_WARNINGS"       : (False, "hasFatalWarnings"),
-            "BATTERY_IS_DAMAGED"               : (False, "isDamaged"),
-            "BATTERY_IS_DELIVERABLE_TO_USER"   : (False, "isDeliverableToUser")
+            "BATTERY_IS_ADDRESSABLE"              : (False, "isAddressable"),
+            "BATTERY_IS_CHARGING"                 : (False, "isCharging"),
+            "BATTERY_IS_CHARGED"                  : (False, "isCharged"),
+            "BATTERY_IS_CHARGABLE"                : (False, "isChargable"),
+            "BATTERY_HAS_WARNINGS"                : (False, "hasWarnings"),
+            "BATTERY_HAS_FATAL_WARNINGS"          : (False, "hasFatalWarnings"),
+            "BATTERY_IS_DAMAGED"                  : (False, "isDamaged"),
+            "BATTERY_IS_DELIVERABLE_TO_USER"      : (False, "isDeliverableToUser"),
+            "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : (False, "isBusyWithChargeProcess"),
+            "BATTERY_RELAY_CHANNEL_IS_ON"         : (False, "relayChanneOn"),
+
+            "PROCESS_TO_START_BATTERY_CHARGE_IS_ACTIVE"   : (False, "proccessToStartChargeIsActive"),
+            "PROCESS_TO_FINISH_BATTERY_CHARGE_IS_ACTIVE"   : (False, "proccessToFinishChargeIsActive")
         }
         statesToMatch_ = {key:value for key,value in statesToMatch.items() if key in statesToMatchLogic.keys()}
         res = [slotAddress for slotAddress in self.SLOT_ADDRESSES]
@@ -159,10 +218,10 @@ class ControlCenter:
     def std_setup(self):
       
         for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True}):
-            self.setSlotSolenoidStates(slotAddress, [1,0,0])
+            self.setSlotSolenoidsStates(slotAddress, [1,0,0])
 
         for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False}):
-            self.setSlotSolenoidStates(slotAddress, [0,0,0])
+            self.setSlotSolenoidsStates(slotAddress, [0,0,0])
         
         self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
 
@@ -173,7 +232,7 @@ class ControlCenter:
     
     def std_closeEvent(self):
         for slotAddress in self.SLOT_ADDRESSES:
-            self.setSlotSolenoidStates(slotAddress, [0,0,0])
+            self.setSlotSolenoidsStates(slotAddress, [0,0,0])
         return None
     
 
@@ -209,16 +268,18 @@ class ControlCenter:
         try:
             batteryIsChargable           = self.modules[slotAddress].battery.isChargable
             batteryAndDoorSolenoidsAreOn = self.modules[slotAddress].batteryAndDoorSolenoidsAreOn
-            batteryRelayChannelIsOn      = self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].channelsStates[slotAddress.value-1]
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
             
 
-        if batteryIsChargable and batteryAndDoorSolenoidsAreOn and not batteryRelayChannelIsOn:
-            # We charge batteries that are chargable, secured in their slot, and not already charging.
+        if batteryIsChargable and batteryAndDoorSolenoidsAreOn:
+            # We charge batteries that are chargable (i.e: voltage >= 42 and not isCharging), 
+            # and also secured in their slot.
+            self.SIGNALS_DICT_START_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
             self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=500)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
+            QTimer(5000, partial(self.SIGNALS_DICT_START_CHARGE[slotAddress].emit, False))
             return None
 
         elif not batteryAndDoorSolenoidsAreOn:
@@ -239,61 +300,62 @@ class ControlCenter:
         """
 
         try:
-            batteryIsInSlot          = self.modules[slotAddress].battery.inSlot
-            batteryBmsIsOn           = self.modules[slotAddress].battery.bmsON
-            batteryBmsHasCanBusError = self.modules[slotAddress].battery.bmsHasCanBusError
-            batteryHasFatalWarnings  = self.modules[slotAddress].battery.hasFatalWarnings
-            batteryIsCharging        = self.modules[slotAddress].battery.isCharging
-            batteryIsCharged         = self.modules[slotAddress].battery.isCharged
-            batteryRelayChannelIsOn  = self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS].channelsStates[slotAddress.value-1]
+            batteryIsDamaged               = self.modules[slotAddress].battery.isDamaged
+            batteryIsCharging              = self.modules[slotAddress].battery.isCharging
+            batteryIsCharged               = self.modules[slotAddress].battery.isCharged
+            batteryIsBusyWithChargeProcess = self.modules[slotAddress].battery.isBusyWithChargeProcess
+            batteryBmsHasCanBusError       = self.modules[slotAddress].battery.bmsHasCanBusError
+            batteryRelayChannelOn          = self.modules[slotAddress].battery.relayChanneOn
         except AttributeError: 
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
 
-
-        if not batteryIsInSlot or not (batteryBmsIsOn and batteryRelayChannelIsOn):
-            # Either:
-            #  1) The battery is not in the slot
-            #  2) The battery BMS and the Charger are not ON at the same time.
-            # In either case it's not worth continuing the check since the battery could not possibly be charging.
-            return None
         
-        elif batteryBmsHasCanBusError and batteryBmsIsOn and batteryRelayChannelIsOn:
-            # In the case that the battery becomes incomunicated with the station while charging,
-            # we forzably stop the charging process.
+        if batteryIsCharging and (batteryIsDamaged or forcedStop):
+            # If the battery becomes damaged during charging, we forzably stop the charging process. 
+            # We also stop it if it is explicitly enforced by the developer.
+
+            self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
             self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=10500)
-
-            msg = f"WARNING: Battery{slotAddress} has become incomunicated with the station (bmsHasCanBusError == True)"
-            msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
-            warnings.warn(msg)
-
-            return None
-
-        elif batteryIsCharging and (batteryHasFatalWarnings or forcedStop):
-            # If the battery develops "fatal warnings" during charging, we forzably
-            # stop the charging process. We also stop it if it is explicitly enforced by the developer.
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=10500)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
+            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
 
             if forcedStop:
                 msg = f"WARNING: PERFORMING MANUAL FORCED STOP OF THE CHARGING PROCESS FOR Battery{slotAddress}."
             else:
-                msg = f"WARNING: Battery{slotAddress} has developed fatal warnings (hasFatalWarnings == True)."
+                msg = f"WARNING: Battery{slotAddress} has become damaged (isDamaged == True)."
                 msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
 
             warnings.warn(msg)
             return None
+            
         
-        elif batteryIsCharged and batteryRelayChannelIsOn:
+        elif batteryIsCharged and not batteryIsBusyWithChargeProcess:
             # When the battery has finished its charging process, we shut down the charger in the correct way.
+            self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
             self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=500)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
+            QTimer.singleShot(5000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
             return None
         
-        return None
+        elif batteryBmsHasCanBusError and batteryRelayChannelOn:
+            # It may be that the battery becomes incommunicated due to an error in the BMS's CAN-bus.
+            # If that happens we want to make sure that charging is physically impossible, whether the 
+            # charge is still ongoing, it's already finished or just never took place. We shall assume the worst
+            # case. That is, we assume the battery was still charging when this error happened.
+        
+            self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
+            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
+
+            msg = f"WARNING: Battery{slotAddress} has become incommunicated (bmsHasCanBusError == True)."
+            msg = f"{msg}. due to damage to the BMS's can bus. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
+            warnings.warn(msg)
+            return None
+    
 
 
     def startChargeOfSlotBatteriesIfAllowable(self):

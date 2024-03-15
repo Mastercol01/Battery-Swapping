@@ -1,11 +1,15 @@
 import os
+from enum import Enum
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QToolButton
 
 
 
+
 class OptionsPanelWindow(QWidget):
+
+
     def __init__(self):
         super().__init__()    
 

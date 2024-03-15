@@ -45,7 +45,10 @@ from BSS_control.thread_workers import (
     SerialReadWorker,
     RfidReadWorker)
 
+
+from BSS_control.CanUtils import MODULE_ADDRESS
 from BSS_control.control_center import ControlCenter
+from BSS_control.battery_slot import LED_STRIP_STATE, SOLENOID_NAME
 
 
 
@@ -53,6 +56,8 @@ IMGS_PATH = os.path.join(os.path.dirname(__file__), "Images_and_Icons")
 SYMBOLS_PATHS = {
     "ATTENTION" : os.path.join(IMGS_PATH, "attention_symbol.png"),
     "ERROR_404" : os.path.join(IMGS_PATH, "error_404.png"),
+    "INPUT"     : os.path.join(IMGS_PATH, "input.png"),
+    "OUTPUT"    : os.path.join(IMGS_PATH, "output.png"),
 }
 
 
@@ -67,10 +72,15 @@ class WINS(Enum):
 class MainWindowSignals(QObject):
     terminate_SerialReadWorker = pyqtSignal()
     terminate_RfidReadWorker   = pyqtSignal()
+    batteryEntryDetected       = pyqtSignal(int)
+    batteryEgressDetected      = pyqtSignal(int)
     
 
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
+    USER_INTERACTION_TIMEOUT = 300000
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 6000
+    
 
     def __init__(self):
         super().__init__()
@@ -84,16 +94,19 @@ class MainWindow(QMainWindow):
         self.user = None
         self.readyToClose = False
         self.attendingUser = False
+        self.numBattsEntered  = 0
+        self.numBattsEgressed = 0
+        self.checkingForUserAndBatteryInteraction = True
+
         self.ControlCenter_obj = ControlCenter()
-        
         self.globalTimers_setup()
         self.windows_setup()
         self.toolbar_setup()
         self.threadWorkers_setup()
-
-        QTimer.singleShot(10000, self.ControlCenter_obj.std_setup)
+        
         self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
-        QTimer.singleShot(20000, self.LockScreenWindow_reset)
+        QTimer.singleShot(10000, self.ControlCenter_obj.std_setup)
+        QTimer.singleShot(20000, self.workFlowReset)
         return None
     
 
@@ -102,16 +115,17 @@ class MainWindow(QMainWindow):
 
         self.globalTimers = {
               250 : QTimer(),
+             1000 : QTimer(),
             30000 : QTimer() 
         }
         for key in self.globalTimers.keys():
             self.globalTimers[key].setInterval(key)
 
         self.globalTimers[250].timeout.connect(self.updateGlobalTimerVars250)
+        self.globalTimers[1000].timeout.connect(self.updateGlobalTimerVars1000)
         self.globalTimers[30000].timeout.connect(self.updateGlobalTimerVars30000)
 
         for key in self.globalTimers.keys():
-            self.globalTimers[key].setInterval(key)
             self.globalTimers[key].start()
         return None
 
@@ -119,6 +133,32 @@ class MainWindow(QMainWindow):
         self.currentGlobalTime += 250
         self.ControlCenter_obj.updateCurrentGlobalTime(self.currentGlobalTime)
         self.ControlCenter_obj.sendCanMsg()
+        return None
+    
+    def updateGlobalTimerVars1000(self):
+        freeSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
+        slotsWithDeliverableBattsToUser = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
+
+        if self.checkingForUserAndBatteryInteraction:
+            if len(freeSlots) < len(self.freeSlots):
+                slotTargeted = [slotAddress for slotAddress in self.freeSlots if slotAddress not in freeSlots][0]
+                QTimer.singleShot(
+                    self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
+                    partial(self.SIGNALS.batteryEntryDetected.emit, slotTargeted.value))
+
+            elif len(freeSlots) > len(self.freeSlots):
+                slotTargeted = [slotAddress for slotAddress in freeSlots if slotAddress not in self.freeSlots][0]
+                QTimer.singleShot(
+                    self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
+                    partial(self.SIGNALS.batteryEgressDetected.emit, slotTargeted.value))
+
+            self.checkingForUserAndBatteryInteraction = False
+
+        self.freeSlots = freeSlots
+        self.slotsWithDeliverableBattsToUser = slotsWithDeliverableBattsToUser
+
+        if not self.attendingUser:
+            self.userInteractionTimer = self.currentGlobalTime
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -134,6 +174,8 @@ class MainWindow(QMainWindow):
             #QTimer.singleShot(1000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
             pass
 
+        elif self.currentGlobalTime - self.userInteractionTimer > self.USER_INTERACTION_TIMEOUT:
+            self.workFlowReset()
         return None
 
 
@@ -151,6 +193,9 @@ class MainWindow(QMainWindow):
             self.stckdWidget.insertWidget(key.value, self.windows[key])
 
         self.show_window = {key:partial(self.stckdWidget.setCurrentIndex, key.value) for key in WINS}
+
+        for key in self.windows[WINS.OPTIONS_PANEL].btns.keys():
+            self.windows[WINS.OPTIONS_PANEL].clickedConnectBtns(key, partial(self.OptionsPanelWindow_workFlow, key))
 
         self.show_window[WINS.LOCK_SCREEN]()
         self.setCentralWidget(self.stckdWidget)
@@ -208,6 +253,10 @@ class MainWindow(QMainWindow):
         self.threadpool.start(self.rfidReadWorker)
         return None
     
+    def SIGNALS_setup(self):
+        self.SIGNALS.batteryEntryDetected.connect(self.batteryEntry_workflow_part2)
+        return None
+    
 
 
 
@@ -228,7 +277,7 @@ class MainWindow(QMainWindow):
         if cardId < 0:
             errorMsg = "ERROR AL LEER TARJETA! INTENTE DE NUEVO"
             self.windows[WINS.LOCK_SCREEN].text = errorMsg
-            QTimer.singleShot(2000, self.LockScreenWindow_reset)
+            QTimer.singleShot(2000, self.workFlowReset)
             return None
         
         print(cardId)
@@ -237,13 +286,17 @@ class MainWindow(QMainWindow):
         if not users:
             noUsersFoundMsg = "USUARIO NO REGISTRADO. REGÍSTRESE PARA USAR LA ESTACIÓN"
             self.windows[WINS.LOCK_SCREEN].text = noUsersFoundMsg
-            QTimer.singleShot(2000, self.LockScreenWindow_reset)
+            QTimer.singleShot(2000, self.workFlowReset)
             return None
         
         elif len(users) > 1:
             manyUsersFoundMsg = f"ERROR: {len(users)} users were found matching the current cardId" 
             manyUsersFoundMsg = f"{manyUsersFoundMsg}. Closing app. Users' data might be compromised."
-            raise Exception(manyUsersFoundMsg)
+            warnings.warn(manyUsersFoundMsg)
+            manyUsersFoundMsg = f"ERROR DE BASE DE DATOS: MULTIPLICIDAD DE USUARIOS DETECTADA."
+            self.windows[WINS.LOCK_SCREEN].text = manyUsersFoundMsg
+            QTimer.singleShot(2000, self.workFlowReset)
+            raise None
         
         self.user = users[0]
         userName = f"{self.user['firstName']} {self.user['lastName']}"
@@ -251,37 +304,110 @@ class MainWindow(QMainWindow):
         self.windows[WINS.LOCK_SCREEN].text = userFoundMsg      
         QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
         return None
-    
 
-    def LockScreenWindow_reset(self, reloadWindow=True):
-        resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
-        self.windows[WINS.LOCK_SCREEN].text = resetMsg
-        if reloadWindow:
-            self.show_window[WINS.LOCK_SCREEN]()
-        self.attendingUser = False
+
+    def OptionsPanelWindow_workFlow(self, btnClicked):
+
+        self._btnClicked = btnClicked
+
+        if btnClicked == 0:
+            self.batteryEntry_workflow_part1()
+
+
         return None
     
-
-    def OptionsPanelWindow_workFlow(self):
-        return None
-
-    def batteryEntry_workflow(self):
-        freeSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
-
-        if not freeSlots:
-            msg = "¡Lo sentimos! Actualmente no hay slots vacíos disponibles. Vuelva más tarde"
+    def batteryEntry_workflow_part1(self):
+        if len(self.freeSlots) < 2:
+            msg = "¡LO SENTIMOS! ACTUALMENTE NO HAY SUFICIENTES SLOTS VACÍOS DISPONIBLES. VUELVA MÁS TARDE"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
-            QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
-            
-    def OptionsPanelWindow_reset(self, reloadWindow=True):
-        if reloadWindow:
-            self.show_window[WINS.OPTIONS_PANEL]()
-        self.windows[WINS.USER_PROMPT_PANEL].clearAll()
+            QTimer.singleShot(3000, self.workFlowReset)
+            return None
+        else:
+            self.batteryEntry_workflow_part2()
         return None
 
+
+    def batteryEntry_workflow_part2(self, slotTargetedValue = None):
+
+        self.ControlCenter_obj.turnOnLedStripsBasedOnState()
+
+        if self.numBattsEntered == 0:
+            msg = "POR FAVOR INGRESE LA 1ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+            self.show_window[WINS.USER_PROMPT_PANEL]()
+
+            for slotAddress in self.freeSlots:
+                self.ControlCenter_obj.setSlotSolenoidsStates(slotAddress, [0,1,1])
+
+            self.checkingForUserAndBatteryInteraction = True
+
+
+        elif self.numBattsEntered == 1:
+            msg = "POR FAVOR INGRESE LA 2ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+
+            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+
+            self.checkingForUserAndBatteryInteraction = True
+            
+
+        elif self.numBattsEntered == 2:
+            msg = "¡BATERÍAS INGRESADAS EXITOSAMENTE!"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+
+            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+
+            for slotAddress in self.freeSlots:
+                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
+                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+
+            self.numBattsEntered = 0
+
+            if self.btnClicked  == 1:
+                msg = "GRACIAS POR USAR NUESTRA ESTACIÓN ¡VUELVA PRONTO!"
+                QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].text, msg))
+                QTimer.singleShot(4000, self.workFlowReset)
+                del self._btnClicked 
+
+        return None
+
+
+
+    
+
+
+
+    def workFlowReset(self):
+        self.user = None
+        self.ControlCenter_obj.turnOffAllLedStrips()
+        self.checkingForUserAndBatteryInteraction = False
+
+
+        for slotAddress in self.ControlCenter_obj.SLOT_ADDRESSES:
+            self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
+            self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+
+            batteryInSlot = self.ControlCenter_obj.modules[slotAddress].battery.inSlot
+            batteryIsBusyWithChargeProcess = self.ControlCenter_obj.modules[slotAddress].battery.isBusyWithChargeProcess
+            
+            if batteryInSlot and not batteryIsBusyWithChargeProcess:
+                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 1)
+        
+
+        resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
+        self.windows[WINS.LOCK_SCREEN].text = resetMsg
+        self.show_window[WINS.LOCK_SCREEN]()
+        self.attendingUser = False
+        return None
 
 
 
@@ -293,6 +419,7 @@ class MainWindow(QMainWindow):
 
     def exitCall(self):
         self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
+        self.show_window[WINS.LOCK_SCREEN]()
         self.ControlCenter_obj.std_closeEvent()
         self.SIGNALS.terminate_RfidReadWorker.emit()
         QTimer.singleShot(3000, self.SIGNALS.terminate_SerialReadWorker.emit)

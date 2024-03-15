@@ -48,11 +48,11 @@ class EightChannelRelay:
         return None
 
     @property
-    def channelsStates(self)->ArrayOfBool:
+    def channelsStates(self)->ArrayOfBool | List[float]:
         try:
             res = array("B", [bool(round(np.mean(self.buffers[name]))) for name in CHANNEL_NAME])
         except ValueError:
-            res = np.nan
+            res = [np.nan for _ in range(8)]
         return res
     
 

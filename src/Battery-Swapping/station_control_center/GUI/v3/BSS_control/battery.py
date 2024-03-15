@@ -119,6 +119,9 @@ class Battery:
         self.bmsON = False
         self.waitingForAllData = False
         self.bmsHasCanBusError = False
+
+        # OTHER VARS
+        self.relayChanneOn = False
         return None
 
 
@@ -162,7 +165,7 @@ class Battery:
         self.currentGlobalTime = newCurrentGlobalTime
         return None
 
-    def updateStatesFromBatterySlotModule(self, inSlot:bool, bmsHasCanBusError:bool, bmsON:bool)->None:
+    def updateStatesFromBatterySlotModule(self, inSlot:bool|float, bmsHasCanBusError:bool|float, bmsON:bool|float)->None:
 
         if any(np.isnan([inSlot, bmsHasCanBusError, bmsON])):
             return None
@@ -191,6 +194,10 @@ class Battery:
         self.inSlot = inSlot
         self.bmsON = bmsON
         self.bmsHasCanBusError = bmsHasCanBusError
+        return None
+    
+    def updateStatesFromControlCenter(self, relayChannelOn : bool|float)->None:
+        self.relayChanneOn = relayChannelOn
         return None
     
     @property
@@ -227,7 +234,7 @@ class Battery:
     
     @property
     def isDamaged(self)->bool:
-        return self.hasFatalWarnings or self.bmsHasCanBusError
+        return self.hasFatalWarnings or self.bmsHasCanBusError or any([self.soc < 0, self.voltage < 0, self.current < 0])
     
     @property
     def temps(self)->Dict[str, float]:
@@ -241,11 +248,7 @@ class Battery:
     
     @property
     def isCharging(self)->bool:
-        if self.current > 0.05: 
-            self.isCharging_ = True
-        else: 
-            self.isCharging_ = False
-        return self.isCharging_
+        return self.current > 0
     
     @property
     def isCharged(self)->bool:
@@ -253,7 +256,7 @@ class Battery:
 
     @property
     def isChargable(self)->bool:
-        return self.isAddressable and not self.isDamaged and not self.isCharged and not self.isCharging
+        return self.isAddressable and not self.isDamaged and not self.isCharged and not self.isBusyWithChargeProcess
     
     @property
     def timeUntilFullCharge(self)->float:
@@ -279,7 +282,30 @@ class Battery:
     
     @property
     def isDeliverableToUser(self)->bool:
-        return self.isAddressable and self.isCharged and not self.isDamaged
+        return self.isAddressable and self.isCharged and not self.isDamaged and not self.isBusyWithChargeProcess
+    
+    @property
+    def proccessToStartChargeIsActive(self)->bool:
+        return self.proccessToStartChargeIsActive_
+    
+    @proccessToStartChargeIsActive.setter
+    def proccessToStartChargeIsActive(self, value)->bool:
+        self.proccessToStartChargeIsActive_ = value
+        return None
+
+    @property
+    def proccessToFinishChargeIsActive(self)->bool:
+        return self.proccessToFinishChargeIsActive_
+    
+    @proccessToFinishChargeIsActive.setter
+    def proccessToFinishChargeIsActive(self, value)->bool:
+        self.proccessToFinishChargeIsActive_ = value
+        return None
+
+    @property
+    def isBusyWithChargeProcess(self):
+        return self.isCharging or self.proccessToStartChargeIsActive or self.proccessToFinishChargeIsActive
+
     
     
     def clearBuffers(self)->None:
@@ -326,6 +352,10 @@ class Battery:
         print(f"isChargable: {self.isChargable}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
+        print(f"proccessToStartChargeIsActive: {self.proccessToStartChargeIsActive}")
+        print(f"proccessToFinishChargeIsActive: {self.proccessToFinishChargeIsActive}")
+        print(f"isBusyWithChargeProcess: {self.isBusyWithChargeProcess}")
+        print(f"relayChanneOn: {self.relayChanneOn}")
 
         print()
 
