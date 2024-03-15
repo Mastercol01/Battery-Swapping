@@ -122,6 +122,8 @@ class Battery:
 
         # OTHER VARS
         self.relayChanneOn = False
+        self.proccessToStartChargeIsActive_setter(False)     
+        self.proccessToFinishChargeIsActive_setter(False)
         return None
 
 
@@ -200,6 +202,21 @@ class Battery:
         self.relayChanneOn = relayChannelOn
         return None
     
+    # NOTE: If (isAddressable == False) then:
+    #       self.voltage                   -> NaN   
+    #       self.current                   -> NaN 
+    #       self.soc                       -> NaN 
+    #       warnings                       -> set() 
+    #       fatalWarnings                  -> set() 
+    #       hasWarnings                    -> False
+    #       hasFatalWarnings               -> False
+    #       isDamaged                      -> False (unless bmsHasCanBusError==True in which case it's also True)
+    #       isCharging                     -> False
+    #       isCharged                      -> False
+    #       canProceedToBeCharged          -> False
+    #       timeUntilFullCharge            -> NaN
+    #       timeUntilFullChargeInStrFormat -> NaN
+
     @property
     def isAddressable(self)->bool:
         return self.inSlot and self.bmsON and not self.waitingForAllData and not self.bmsHasCanBusError
@@ -252,10 +269,10 @@ class Battery:
     
     @property
     def isCharged(self)->bool:
-        return self.voltage >= 42 and not self.isCharging
+        return self.voltage >= 40 and not self.isCharging
 
     @property
-    def isChargable(self)->bool:
+    def canProceedToBeCharged(self)->bool:
         return self.isAddressable and not self.isDamaged and not self.isCharged and not self.isBusyWithChargeProcess
     
     @property
@@ -271,34 +288,34 @@ class Battery:
         return float(batteryVoltage2TimeUntilFullCharge(voltage_))
     
     @property
-    def timeUntilFullChargeInStrFormat(self)->str:
+    def timeUntilFullChargeInStrFormat(self)->str|float:
         try:
             timeStr = str(datetime.timedelta(seconds=self.timeUntilFullCharge))
             timeStr = timeStr.split(":")
             timeStr = f"{timeStr[0]}h:{timeStr[1]}min:{round(float(timeStr[2]))}s"
         except ValueError:
-            timeStr = "nan"
+            timeStr = np.nan
         return timeStr
     
     @property
     def isDeliverableToUser(self)->bool:
-        return self.isAddressable and self.isCharged and not self.isDamaged and not self.isBusyWithChargeProcess
+        return self.isAddressable and not self.isDamaged and self.isCharged and not self.isBusyWithChargeProcess
     
     @property
     def proccessToStartChargeIsActive(self)->bool:
         return self.proccessToStartChargeIsActive_
     
-    @proccessToStartChargeIsActive.setter
-    def proccessToStartChargeIsActive(self, value)->bool:
+    
+    def proccessToStartChargeIsActive_setter(self, value)->bool:
         self.proccessToStartChargeIsActive_ = value
         return None
+
 
     @property
     def proccessToFinishChargeIsActive(self)->bool:
         return self.proccessToFinishChargeIsActive_
     
-    @proccessToFinishChargeIsActive.setter
-    def proccessToFinishChargeIsActive(self, value)->bool:
+    def proccessToFinishChargeIsActive_setter(self, value)->bool:
         self.proccessToFinishChargeIsActive_ = value
         return None
 
@@ -349,9 +366,10 @@ class Battery:
         print(f"maxTemp: {self.maxTemp}")
         print(f"isCharging: {self.isCharging}")
         print(f"isCharged: {self.isCharged}")
-        print(f"isChargable: {self.isChargable}")
+        print(f"canProceedToBeCharged: {self.canProceedToBeCharged}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
+        #print(f"canBecomeDeliverableToUser: {self.canBecomeDeliverableToUser}")
         print(f"proccessToStartChargeIsActive: {self.proccessToStartChargeIsActive}")
         print(f"proccessToFinishChargeIsActive: {self.proccessToFinishChargeIsActive}")
         print(f"isBusyWithChargeProcess: {self.isBusyWithChargeProcess}")

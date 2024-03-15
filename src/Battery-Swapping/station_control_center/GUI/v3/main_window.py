@@ -1,6 +1,6 @@
 import os
-import serial
 import warnings
+import numpy as np
 from enum import Enum
 from functools import partial
 from GUI_windows.info_window import InfoWindow
@@ -94,9 +94,9 @@ class MainWindow(QMainWindow):
         self.user = None
         self.readyToClose = False
         self.attendingUser = False
-        self.numBattsEntered  = 0
+        self.numBattsStationDelta  = 0
         self.numBattsEgressed = 0
-        self.checkingForUserAndBatteryInteraction = True
+        self.checkingForUserAndBatteryInteraction = False
 
         self.ControlCenter_obj = ControlCenter()
         self.globalTimers_setup()
@@ -137,7 +137,8 @@ class MainWindow(QMainWindow):
     
     def updateGlobalTimerVars1000(self):
         freeSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
-        slotsWithDeliverableBattsToUser = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":False})
+        occupiedSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":True})
+        slotsWithDeliverableBattsToUser = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER":True})
 
         if self.checkingForUserAndBatteryInteraction:
             if len(freeSlots) < len(self.freeSlots):
@@ -145,16 +146,22 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(
                     self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
                     partial(self.SIGNALS.batteryEntryDetected.emit, slotTargeted.value))
+                self.user["numBatts"] -= 1
+                self.numBattsStationDelta += 1
 
             elif len(freeSlots) > len(self.freeSlots):
                 slotTargeted = [slotAddress for slotAddress in freeSlots if slotAddress not in self.freeSlots][0]
                 QTimer.singleShot(
                     self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
                     partial(self.SIGNALS.batteryEgressDetected.emit, slotTargeted.value))
+                self.user["numBatts"] += 1
+                self.numBattsStationDelta -= 1
+
 
             self.checkingForUserAndBatteryInteraction = False
 
         self.freeSlots = freeSlots
+        self.occupiedSlots = occupiedSlots
         self.slotsWithDeliverableBattsToUser = slotsWithDeliverableBattsToUser
 
         if not self.attendingUser:
@@ -255,6 +262,7 @@ class MainWindow(QMainWindow):
     
     def SIGNALS_setup(self):
         self.SIGNALS.batteryEntryDetected.connect(self.batteryEntry_workflow_part2)
+        self.SIGNALS.batteryEgressDetected.connect(self.batteryEgress_workflow_part2)
         return None
     
 
@@ -307,34 +315,38 @@ class MainWindow(QMainWindow):
 
 
     def OptionsPanelWindow_workFlow(self, btnClicked):
-
-        self._btnClicked = btnClicked
-
-        if btnClicked == 0:
+        self.optionsPanelBtnClickedByUser = btnClicked
+        if self.optionsPanelBtnClickedByUser in [0,2]:
             self.batteryEntry_workflow_part1()
-
-
+        elif self.optionsPanelBtnClickedByUser == 1:
+            self.batteryEgress_workflow_part1()
         return None
     
     def batteryEntry_workflow_part1(self):
-        if len(self.freeSlots) < 2:
+        msg = None        
+        if self.user["numBatts"] == 0:
+            msg = "¡LO SENTIMOS! EL SISTEMA NO REGISTRA QUE USTED TENGA BATERÍAS PARA ENTREGAR" 
+
+        elif len(self.freeSlots) < self.user["numBatts"]:
             msg = "¡LO SENTIMOS! ACTUALMENTE NO HAY SUFICIENTES SLOTS VACÍOS DISPONIBLES. VUELVA MÁS TARDE"
+
+        if msg is not None:
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
             QTimer.singleShot(3000, self.workFlowReset)
             return None
-        else:
-            self.batteryEntry_workflow_part2()
+        
+        self.batteryEntry_workflow_part2()
         return None
 
 
     def batteryEntry_workflow_part2(self, slotTargetedValue = None):
 
-        self.ControlCenter_obj.turnOnLedStripsBasedOnState()
+        self.ControlCenter_obj.turnOnLedStripsBasedOnState_Entry()
 
-        if self.numBattsEntered == 0:
+        if self.user["numBatts"] > 0 and self.numBattsStationDelta == 0:
             msg = "POR FAVOR INGRESE LA 1ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
@@ -347,61 +359,132 @@ class MainWindow(QMainWindow):
             self.checkingForUserAndBatteryInteraction = True
 
 
-        elif self.numBattsEntered == 1:
+        elif self.user["numBatts"] == 1 and self.numBattsStationDelta == 1:
             msg = "POR FAVOR INGRESE LA 2ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
-
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
-
             self.checkingForUserAndBatteryInteraction = True
-            
 
-        elif self.numBattsEntered == 2:
+
+        else:
             msg = "¡BATERÍAS INGRESADAS EXITOSAMENTE!"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
-
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+            self.checkingForUserAndBatteryInteraction = False
+            self.numBattsStationDelta = 0
 
-            for slotAddress in self.freeSlots:
-                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
-                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
-
-            self.numBattsEntered = 0
-
-            if self.btnClicked  == 1:
+            if self.optionsPanelBtnClickedByUser  == 1:
                 msg = "GRACIAS POR USAR NUESTRA ESTACIÓN ¡VUELVA PRONTO!"
                 QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].text, msg))
                 QTimer.singleShot(4000, self.workFlowReset)
-                del self._btnClicked 
 
+            elif self.optionsPanelBtnClickedByUser == 3:
+                for slotAddress in self.freeSlots:
+                    self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
+                    self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+                self.batteryEgress_workflow_part1()
+                    
         return None
 
+    def batteryEgress_workflow_part1(self):
+        msg = None
+        maxNumBattsRequestableByUser = self.user["maxNumBatts"] - self.user["numBatts"]
+
+        if self.user["numBatts"] >= self.user["maxNumBatts"]:
+            msg = "¡LO SENTIMOS! EL SISTEMA REGISTRA QUE USTED ACTUALMENTE POSEE EL NÚMERO MÁXIMO DE BATERÍAS"
+            msg = f"{msg} QUE SE PUEDEN PRESTAR EN SIMULTÁNEO. ENTREGUE LAS QUE YA TIENE PARA OBTENER NUEVAS."
 
 
+        elif len(self.slotsWithDeliverableBattsToUser) < maxNumBattsRequestableByUser:
+            msg = "¡LO SENTIMOS! NO HAY SUFICIENTES BATERÍAS CARGADAS DISPONIBLES"
+
+            eligibleSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IS_ADDRESSABLE" : True,
+                                                                            "BATTERY_IS_DAMAGED"     : False})
+            
+            if len(eligibleSlots) < maxNumBattsRequestableByUser:
+                msg = f"{msg}. VUELVA MÁS TARDE."
+            
+            else:
+                timeUntilFullCharge = [(slotAddress, self.ControlCenter_obj.modules[slotAddress].battery.timeUntilFullCharge) for slotAddress in eligibleSlots]
+                timeUntilFullCharge = sorted(timeUntilFullCharge, key=lambda x: x[1])[maxNumBattsRequestableByUser-1]
+                timeUntilFullCharge = self.ControlCenter_obj.modules[timeUntilFullCharge[0]].battery.timeUntilFullChargeInStrFormat
+                msg = f"{msg}. VUELVA EN APROX. {timeUntilFullCharge}"
+
+
+        if msg is not None:
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+            self.show_window[WINS.USER_PROMPT_PANEL]()
+            QTimer.singleShot(3000, self.workFlowReset)
+            return None
+        
+        self.batteryEgress_workflow_part2()
+        return None
+    
+    def batteryEgress_workflow_part2(self, slotTargetedValue = None):
+
+        selectedSlotAddress = self.ControlCenter_obj.turnOnLedStripsBasedOnState_Egress()
+        maxNumBattsRequestableByUser = self.user["maxNumBatts"] - self.user["numBatts"]
+
+        if maxNumBattsRequestableByUser > 0 and self.numBattsStationDelta == 0:
+            msg = "POR FAVOR RETIRE LA 1ª BATERÍA DEL SLOT VERDE INDICADO"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["OUTPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+            self.show_window[WINS.USER_PROMPT_PANEL]()
+            self.ControlCenter_obj.setSlotSolenoidsStates(selectedSlotAddress, [0,1,1])
+            self.checkingForUserAndBatteryInteraction = True
+
+        elif maxNumBattsRequestableByUser == 1 and self.numBattsStationDelta == -1:
+            msg = "POR FAVOR RETIRE LA 2ª BATERÍA DEL SLOT VERDE INDICADO"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
+            self.ControlCenter_obj.setSlotSolenoidsStates(selectedSlotAddress, [0,1,1])
+            self.checkingForUserAndBatteryInteraction = True            
+
+        else:
+            msg = "¡BATERÍAS RETIRADAS EXITOSAMENTE!"
+            self.windows[WINS.USER_PROMPT_PANEL].text = msg
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["OUTPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
+            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
+            self.checkingForUserAndBatteryInteraction = False
+            self.numBattsStationDelta = 0
+
+            msg = "GRACIAS POR USAR NUESTRA ESTACIÓN ¡VUELVA PRONTO!"
+            QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].text, msg))
+            QTimer.singleShot(4000, self.workFlowReset)
+        return None
     
 
 
 
     def workFlowReset(self):
+        if self.user is not None:
+            updateUsers(userInfoToMatch  = {"cardId"   : self.user["cardId"]},
+                        userInfoToUpdate = {"numBatts" : self.user["numBatts"]})
+        
         self.user = None
         self.ControlCenter_obj.turnOffAllLedStrips()
         self.checkingForUserAndBatteryInteraction = False
-
-
-        for slotAddress in self.ControlCenter_obj.SLOT_ADDRESSES:
+        notSecuredSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"DOOR_LOCK_SOLENOID"    : True,
+                                                                          "BATTERY_LOCK_SOLENOID" : True})
+        for slotAddress in notSecuredSlots:
             self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
             self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
 
-            batteryInSlot = self.ControlCenter_obj.modules[slotAddress].battery.inSlot
-            batteryIsBusyWithChargeProcess = self.ControlCenter_obj.modules[slotAddress].battery.isBusyWithChargeProcess
-            
-            if batteryInSlot and not batteryIsBusyWithChargeProcess:
-                self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 1)
-        
+        bmsShouldBeOn = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                     : True,
+                                                                        "BATTERY_BMS_IS_ON"                   : False,
+                                                                        "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False})
+        for slotAddress in bmsShouldBeOn:
+            self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 1)
 
         resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
         self.windows[WINS.LOCK_SCREEN].text = resetMsg
