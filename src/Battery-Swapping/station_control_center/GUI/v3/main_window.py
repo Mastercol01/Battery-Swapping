@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import (
 
 from User_database.user_database import (
     getUsers,
-    updateUsers)
+    updateUsersNumBatts)
 
 from BSS_control.thread_workers import (
     SerialReadWorker,
@@ -79,7 +79,7 @@ class MainWindowSignals(QObject):
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
     USER_INTERACTION_TIMEOUT = 300000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 6000
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 1500
     
 
     def __init__(self):
@@ -92,10 +92,9 @@ class MainWindow(QMainWindow):
 
     def setup(self):
         self.user = None
-        self.readyToClose = False
         self.attendingUser = False
+        self.readyToCloseApp = False
         self.numBattsStationDelta  = 0
-        self.numBattsEgressed = 0
         self.checkingForUserAndBatteryInteraction = False
 
         self.ControlCenter_obj = ControlCenter()
@@ -112,7 +111,6 @@ class MainWindow(QMainWindow):
 
     def globalTimers_setup(self):
         self.currentGlobalTime = 0
-
         self.globalTimers = {
               250 : QTimer(),
              1000 : QTimer(),
@@ -140,25 +138,28 @@ class MainWindow(QMainWindow):
         occupiedSlots = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IN_SLOT":True})
         slotsWithDeliverableBattsToUser = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER":True})
 
-        if self.checkingForUserAndBatteryInteraction:
+
+        if self.checkingForUserAndBatteryInteraction:   
+
+            # BATTERY ENTRY DETECTION
             if len(freeSlots) < len(self.freeSlots):
+                self.user["numBatts"] -= 1
+                self.numBattsStationDelta += 1
                 slotTargeted = [slotAddress for slotAddress in self.freeSlots if slotAddress not in freeSlots][0]
                 QTimer.singleShot(
                     self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
-                    partial(self.SIGNALS.batteryEntryDetected.emit, slotTargeted.value))
-                self.user["numBatts"] -= 1
-                self.numBattsStationDelta += 1
+                    partial(self.batteryEntry_workflow_part2, slotTargeted.value))
+                self.checkingForUserAndBatteryInteraction = False
 
+            # BATTERY EGRESS DETECTION
             elif len(freeSlots) > len(self.freeSlots):
+                self.user["numBatts"] += 1
+                self.numBattsStationDelta -= 1
                 slotTargeted = [slotAddress for slotAddress in freeSlots if slotAddress not in self.freeSlots][0]
                 QTimer.singleShot(
                     self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
-                    partial(self.SIGNALS.batteryEgressDetected.emit, slotTargeted.value))
-                self.user["numBatts"] += 1
-                self.numBattsStationDelta -= 1
-
-
-            self.checkingForUserAndBatteryInteraction = False
+                    partial(self.batteryEgress_workflow_part2, slotTargeted.value))
+                self.checkingForUserAndBatteryInteraction = False
 
         self.freeSlots = freeSlots
         self.occupiedSlots = occupiedSlots
@@ -180,7 +181,6 @@ class MainWindow(QMainWindow):
             #self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable()
             #QTimer.singleShot(1000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
             pass
-
         elif self.currentGlobalTime - self.userInteractionTimer > self.USER_INTERACTION_TIMEOUT:
             self.workFlowReset()
         return None
@@ -249,7 +249,7 @@ class MainWindow(QMainWindow):
         self.threadpool.start(self.serialReadWorker)
         return None
     def serialLaunchFailure(self):
-        self.readyToClose = True
+        self.readyToCloseApp = True
         self.close()
         return None
     
@@ -260,10 +260,7 @@ class MainWindow(QMainWindow):
         self.threadpool.start(self.rfidReadWorker)
         return None
     
-    def SIGNALS_setup(self):
-        self.SIGNALS.batteryEntryDetected.connect(self.batteryEntry_workflow_part2)
-        self.SIGNALS.batteryEgressDetected.connect(self.batteryEgress_workflow_part2)
-        return None
+
     
 
 
@@ -281,6 +278,7 @@ class MainWindow(QMainWindow):
             self.show_window[WINS.LOCK_SCREEN]()
 
         self.attendingUser = True
+        self.ControlCenter_obj.turnOnLedStripsBasedOnState()
 
         if cardId < 0:
             errorMsg = "ERROR AL LEER TARJETA! INTENTE DE NUEVO"
@@ -288,7 +286,6 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(2000, self.workFlowReset)
             return None
         
-        print(cardId)
         users = getUsers({"cardId":cardId})
 
         if not users:
@@ -312,7 +309,6 @@ class MainWindow(QMainWindow):
         self.windows[WINS.LOCK_SCREEN].text = userFoundMsg      
         QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
         return None
-
 
     def OptionsPanelWindow_workFlow(self, btnClicked):
         self.optionsPanelBtnClickedByUser = btnClicked
@@ -377,12 +373,12 @@ class MainWindow(QMainWindow):
             self.checkingForUserAndBatteryInteraction = False
             self.numBattsStationDelta = 0
 
-            if self.optionsPanelBtnClickedByUser  == 1:
+            if self.optionsPanelBtnClickedByUser  == 0:
                 msg = "GRACIAS POR USAR NUESTRA ESTACIÓN ¡VUELVA PRONTO!"
-                QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].text, msg))
+                QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].setText, msg))
                 QTimer.singleShot(4000, self.workFlowReset)
 
-            elif self.optionsPanelBtnClickedByUser == 3:
+            elif self.optionsPanelBtnClickedByUser == 2:
                 for slotAddress in self.freeSlots:
                     self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK,    0)
                     self.ControlCenter_obj.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
@@ -427,6 +423,7 @@ class MainWindow(QMainWindow):
         return None
     
     def batteryEgress_workflow_part2(self, slotTargetedValue = None):
+        print("batteryEgress_workflow_part2_Triggered")
 
         selectedSlotAddress = self.ControlCenter_obj.turnOnLedStripsBasedOnState_Egress()
         maxNumBattsRequestableByUser = self.user["maxNumBatts"] - self.user["numBatts"]
@@ -459,7 +456,7 @@ class MainWindow(QMainWindow):
             self.numBattsStationDelta = 0
 
             msg = "GRACIAS POR USAR NUESTRA ESTACIÓN ¡VUELVA PRONTO!"
-            QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].text, msg))
+            QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].setText, msg))
             QTimer.singleShot(4000, self.workFlowReset)
         return None
     
@@ -468,8 +465,7 @@ class MainWindow(QMainWindow):
 
     def workFlowReset(self):
         if self.user is not None:
-            updateUsers(userInfoToMatch  = {"cardId"   : self.user["cardId"]},
-                        userInfoToUpdate = {"numBatts" : self.user["numBatts"]})
+            updateUsersNumBatts({"cardId":self.user["cardId"]}, self.user["numBatts"])
         
         self.user = None
         self.ControlCenter_obj.turnOffAllLedStrips()
@@ -495,8 +491,8 @@ class MainWindow(QMainWindow):
 
 
 
-    def readyToCloseTrue(self):
-        self.readyToClose = True
+    def readyToCloseAppTrue(self):
+        self.readyToCloseApp = True
         return None
     
 
@@ -506,13 +502,13 @@ class MainWindow(QMainWindow):
         self.ControlCenter_obj.std_closeEvent()
         self.SIGNALS.terminate_RfidReadWorker.emit()
         QTimer.singleShot(3000, self.SIGNALS.terminate_SerialReadWorker.emit)
-        QTimer.singleShot(8000, self.readyToCloseTrue)
+        QTimer.singleShot(8000, self.readyToCloseAppTrue)
         QTimer.singleShot(8500, self.close)
         return None
 
 
     def closeEvent(self, e):
-        if self.readyToClose:
+        if self.readyToCloseApp:
             e.accept()
         else:
             self.exitCall()

@@ -258,33 +258,31 @@ class ControlCenter:
         return None
     
     def turnOnLedStripsBasedOnState_Entry(self):
-        self.turnOnLedStripsBasedOnState()
+        freeSlots     = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : False})
+        occupiedSlots = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : True})
+
+        for slotAddress in freeSlots:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
+
+        for slotAddress in occupiedSlots:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
         return None
     
     def turnOnLedStripsBasedOnState_Egress(self):
-        batteries_notInSlot         = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : False })
-        batteries_damaged           = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED"             : True  })
-        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True  })
-        other_batteries             = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : True, 
-                                                                    "BATTERY_IS_DAMAGED"             : False,
-                                                                    "BATTERY_IS_DELIVERABLE_TO_USER" : False  })
+        slotsWithDeliverableBatteriesToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True})
+        otherSlots = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : False})      
 
-        for slotAddress in batteries_notInSlot:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
+        try:
+            selectedSlotAddress = slotsWithDeliverableBatteriesToUser[0]
+            self.setSlotLedStripState(selectedSlotAddress, LED_STRIP_STATE.GREEN)
+        except IndexError:
+            selectedSlotAddress = None
 
-        for slotAddress in batteries_damaged:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.PURPLE)
-
-        selectedSlotAddress = batteries_deliverableToUser[0]
-        self.setSlotLedStripState(selectedSlotAddress, LED_STRIP_STATE.GREEN)
-
-        for slotAddress in batteries_deliverableToUser[1:]:
+        for slotAddress in otherSlots + slotsWithDeliverableBatteriesToUser[1:]:
             self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
 
-        for slotAddress in other_batteries:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.RED)
-
         return selectedSlotAddress
+
 
     def turnOffAllLedStrips(self):
         for slotAddress in self.SLOT_ADDRESSES:

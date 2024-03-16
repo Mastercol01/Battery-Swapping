@@ -52,6 +52,10 @@ class UserPromptPanelWindow(QWidget):
         self.labelText = text
         self.mainLabel.setText(self.labelText)
         return None
+    
+    def setText(self, text):
+        self.text = text
+        return None
 
     @property
     def fontSize(self):

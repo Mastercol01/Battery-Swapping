@@ -28,14 +28,14 @@ def addUser(cardId, firstName, lastName, email, cel, superAccess = False, initNu
     db.insert(userInfo)
     return None
 
+
 def getUsers(userInfoToMatch):
     userInfoToMatch_ = {key:value for key,value in userInfoToMatch.items() if key in VALID_USER_INFO_FIELDS}
     return db.search(User.fragment(userInfoToMatch_))
 
-def updateUsers(userInfoToMatch, userInfoToUpdate):
+def updateUsersNumBatts(userInfoToMatch, numBatts):
     userInfoToMatch_ = {key:value for key,value in userInfoToMatch.items() if key in VALID_USER_INFO_FIELDS}
-    userInfoToUpdate = {key:value for key,value in userInfoToUpdate.items() if key in VALID_USER_INFO_FIELDS}
-    db.update(userInfoToUpdate, User.fragment(userInfoToMatch_))
+    db.update({"numBatts":numBatts}, User.fragment(userInfoToMatch_))
     return None
 
 
