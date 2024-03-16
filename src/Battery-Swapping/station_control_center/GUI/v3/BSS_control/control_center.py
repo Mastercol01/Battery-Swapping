@@ -213,25 +213,36 @@ class ControlCenter:
                 res = [slotAddress for slotAddress in res if getattr(self.modules[slotAddress].battery, attrName) == stateValueToMatch]
 
         return res
-    
-    
-    def std_setup(self):
-        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": True}):
-            self.setSlotSolenoidsStates(slotAddress, [1,0,0])
 
-        for slotAddress in self.getSlotsThatMatchStates({"BATTERY_IN_SLOT": False}):
-            self.setSlotSolenoidsStates(slotAddress, [0,0,0])
-        
-        self.modules[self.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
-        for i, slotAddress in enumerate(self.SLOT_ADDRESSES):
-            QTimer.singleShot(2500, self.modules[slotAddress]._debugPrint)
-            QTimer.singleShot(6000 + 500*i, self.modules[slotAddress].battery._debugPrint)
+    
+    def _debugPrint(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.modules[slotAddress]._debugPrint()
         return None
     
-    def std_closeEvent(self):
-        for slotAddress in self.SLOT_ADDRESSES:
-            self.setSlotSolenoidsStates(slotAddress, [0,0,0])
-        self.turnOffAllLedStrips()
+    def secureAllSlots(self):
+        notSecuredDoors = self.getSlotsThatMatchStates({"DOOR_LOCK_SOLENOID" : True})
+        for slotAddress in notSecuredDoors:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
+
+        notSecuredBatts = self.getSlotsThatMatchStates({"BATTERY_LOCK_SOLENOID" : True})
+        for slotAddress in notSecuredBatts:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
+        return None
+    
+    def turnOnBmsSolenoidsWhereWise(self):
+        bmsShouldBeOn = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                     : True,
+                                                      "BATTERY_BMS_IS_ON"                   : False,
+                                                      "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False})
+        for slotAddress in bmsShouldBeOn:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 1)
+        return None
+    
+    def turnOffAllBmsSolenoidsIfPossible(self):
+        bmsShouldBeOff = self.getSlotsThatMatchStates({"BATTERY_BMS_IS_ON"                   : True,
+                                                       "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False})
+        for slotAddress in bmsShouldBeOff:
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
         return None
     
 

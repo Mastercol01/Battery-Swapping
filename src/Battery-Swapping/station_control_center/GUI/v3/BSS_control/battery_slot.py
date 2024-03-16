@@ -125,17 +125,17 @@ class BatterySlot:
         return res
     @property
     def bmsSolenoidState(self):
-        try: res = self.solenoidsStates[SOLENOID_NAME.BMS]
+        try: res = self.solenoidsStates[SOLENOID_NAME.BMS.value]
         except TypeError: res = np.nan
         return res    
     @property
     def doorLockSolenoidState(self):
-        try: res = self.solenoidsStates[SOLENOID_NAME.DOOR_LOCK]
+        try: res = self.solenoidsStates[SOLENOID_NAME.DOOR_LOCK.value]
         except TypeError: res = np.nan
         return res
     @property
     def batteryLockSolenoidState(self):
-        try: res = self.solenoidsStates[SOLENOID_NAME.BATTERY_LOCK]
+        try: res = self.solenoidsStates[SOLENOID_NAME.BATTERY_LOCK.value]
         except TypeError: res = np.nan
         return res
     
