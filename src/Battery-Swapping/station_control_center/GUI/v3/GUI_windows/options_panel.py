@@ -68,7 +68,7 @@ class OptionsPanelWindow(QWidget):
         # Set widget layout
         self.setLayout(self.mainLayout)
 
-    def clickedConnectBtns(self, btnNum, func):
+    def clickedConnectBtn(self, btnNum, func):
         self.btns[btnNum].clicked.connect(func)
         return None
 

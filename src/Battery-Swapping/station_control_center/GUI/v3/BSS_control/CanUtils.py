@@ -25,7 +25,7 @@ class MODULE_ADDRESS(Enum):
   MODULE_ADDRESS_NONE = 0
   SLOT1 = 1
   SLOT2 = 2
-  SLOT3 = 3,
+  SLOT3 = 3
   SLOT4 = 4
   SLOT5 = 5
   SLOT6 = 6

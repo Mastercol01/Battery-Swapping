@@ -42,7 +42,7 @@ def updateUsersNumBatts(userInfoToMatch, numBatts):
 def _createInitialListOfUsers():
     db.truncate()
     addUser(1779216653, "Andrés Yesid", "Moreno Villa",      "andresmoreno@email.com",   5550123456, superAccess = False, initNumBatts = 0)
-    addUser(1018734958, "Pedro",        "Vélez Aristizábal", "pedrovelez@email.com",     2226789012, superAccess = False, initNumBatts = 0)
+    addUser(1018734958, "Pedro",        "Vélez Aristizábal", "pedrovelez@email.com",     2226789012, superAccess = True, initNumBatts = 0)
     addUser(1742157924, "Gilberto",     "Osorio",            "gilbertoosorio@email.com", 3335432198, superAccess = False, initNumBatts = 0)
     addUser(1742157924, "Ricardo",      "Mejía Gutiérrez",   "ricardomejia@email.com",   4447890321, superAccess = False, initNumBatts = 0)
     return None

@@ -74,8 +74,8 @@ class UserPromptPanelWindow(QWidget):
         self.imgs[imgNum].setPixmap(self.pixmaps[imgNum])
         return None
     
-    def resizeImgs(self, imgNum, newH, newV):
-        self.pixmaps[imgNum] = self.pixmaps[imgNum].scaled(newH, newV)
+    def resizeImgs(self, imgNum, boxPixelWidth, boxPixelHeight):
+        self.pixmaps[imgNum] = self.pixmaps[imgNum].scaled(boxPixelWidth, boxPixelHeight, Qt.AspectRatioMode.KeepAspectRatio)
         self.imgs[imgNum].setPixmap(self.pixmaps[imgNum])
         return None
     

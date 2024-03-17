@@ -7,6 +7,8 @@ from GUI_windows.info_window import InfoWindow
 from GUI_windows.lock_screen import LockScreenWindow
 from GUI_windows.options_panel import OptionsPanelWindow
 from GUI_windows.user_prompt_panel import UserPromptPanelWindow
+from GUI_windows.super_access_options_panel import SuperAccessOptionsPanelWindow
+from GUI_windows.super_access_slot_status_panel import SuperAccessSlotStatusPanelWindow
 
 from PyQt5.QtGui import (
     QFont,
@@ -58,6 +60,7 @@ SYMBOLS_PATHS = {
     "ERROR_404" : os.path.join(IMGS_PATH, "error_404.png"),
     "INPUT"     : os.path.join(IMGS_PATH, "input.png"),
     "OUTPUT"    : os.path.join(IMGS_PATH, "output.png"),
+    "SUCCESS"   : os.path.join(IMGS_PATH, "success.png"),
 }
 
 
@@ -67,6 +70,8 @@ class WINS(Enum):
     LOCK_SCREEN = 1
     OPTIONS_PANEL = 2
     USER_PROMPT_PANEL = 3
+    SUPER_ACCESS_OPTIONS_PANEL = 4
+    SUPER_ACCESS_SLOT_STATUS_PANEL = 5
 
 
 class MainWindowSignals(QObject):
@@ -98,6 +103,7 @@ class MainWindow(QMainWindow):
         self.user = None
         self.attendingUser = False
         self.numBattsStationDelta  = 0
+        self.moduleStatusPanelToUpdate = None
         self.checkingForUserAndBatteryInteraction = False
 
         self.ControlCenter_obj = ControlCenter()
@@ -139,7 +145,10 @@ class MainWindow(QMainWindow):
             WINS.INFO_WINDOW       : InfoWindow(),
             WINS.LOCK_SCREEN       : LockScreenWindow(),
             WINS.OPTIONS_PANEL     : OptionsPanelWindow(),
-            WINS.USER_PROMPT_PANEL : UserPromptPanelWindow()
+            WINS.USER_PROMPT_PANEL : UserPromptPanelWindow(),
+
+            WINS.SUPER_ACCESS_OPTIONS_PANEL      : SuperAccessOptionsPanelWindow(),
+            WINS.SUPER_ACCESS_SLOT_STATUS_PANEL  : SuperAccessSlotStatusPanelWindow(self.ControlCenter_obj)
         }
         
         for key in self.windows.keys():
@@ -148,7 +157,11 @@ class MainWindow(QMainWindow):
         self.show_window = {key:partial(self.stckdWidget.setCurrentIndex, key.value) for key in WINS}
 
         for key in self.windows[WINS.OPTIONS_PANEL].btns.keys():
-            self.windows[WINS.OPTIONS_PANEL].clickedConnectBtns(key, partial(self.OptionsPanelWindow_workFlow, key))
+            self.windows[WINS.OPTIONS_PANEL].clickedConnectBtn(key, partial(self.OptionsPanelWindow_workFlow, key))
+
+        for key in self.ControlCenter_obj.SLOT_ADDRESSES:
+            self.windows[WINS.SUPER_ACCESS_OPTIONS_PANEL].clickedConnectBtn(key, partial(self.SuperAccessOptionsPanelWindow_workflow, key))
+
 
         self.show_window[WINS.LOCK_SCREEN]()
         self.setCentralWidget(self.stckdWidget)
@@ -156,17 +169,31 @@ class MainWindow(QMainWindow):
     @property
     def currentWindow(self):
         return WINS(self.stckdWidget.currentIndex())
-    
 
     def toolbar_setup(self):
         toolbar = QToolBar("toolbar")
         toolbar.setIconSize(QSize(25, 25))
         self.addToolBar(toolbar)
-        icon = self.style().standardIcon(QStyle.SP_MessageBoxInformation)
-        button_action = QAction(QIcon(icon), "Sobre Nosotros", self)
-        button_action.triggered.connect(self.showAboutUsSection)
-        toolbar.addAction(button_action)
+
+        # Add info button
+        infoIcon = self.style().standardIcon(QStyle.SP_MessageBoxInformation)
+        infoButtonAction = QAction(QIcon(infoIcon), "Sobre Nosotros", self)
+        infoButtonAction.triggered.connect(self.showAboutUsSection)
+        toolbar.addAction(infoButtonAction)
+
         toolbar.addSeparator()
+
+        # Add go-back button
+        goBackIcon = self.style().standardIcon(QStyle.SP_ArrowLeft)
+        goBackButtonAction = QAction(QIcon(goBackIcon), "Go Back", self)
+        goBackButtonAction.triggered.connect(self.goBack)
+        toolbar.addAction(goBackButtonAction)
+
+        # Add go-forward button
+        goForwardIcon = self.style().standardIcon(QStyle.SP_ArrowRight)
+        goForwardButtonAction = QAction(QIcon(goForwardIcon), "Go Forward", self)
+        #goForwardButtonAction.triggered.connect(someFunc)
+        toolbar.addAction(goForwardButtonAction)
         return None 
     def showAboutUsSection(self):
         if self.currentWindow == WINS.LOCK_SCREEN:
@@ -174,6 +201,20 @@ class MainWindow(QMainWindow):
             self.timeInsideAboutUsSection = float(self.currentGlobalTime)
         elif self.currentWindow == WINS.INFO_WINDOW:
             self.show_window[WINS.LOCK_SCREEN]()
+        return None
+    def goBack(self):
+        if self.currentWindow == WINS.OPTIONS_PANEL:
+            self.workFlowReset()
+
+        elif self.currentWindow == WINS.SUPER_ACCESS_OPTIONS_PANEL:
+            self.workFlowReset()
+
+        elif self.currentWindow == WINS.SUPER_ACCESS_SLOT_STATUS_PANEL:
+            self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
+            self.moduleStatusPanelToUpdate = None
+            self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].clear()
+        
+        
         return None
     
 
@@ -244,9 +285,12 @@ class MainWindow(QMainWindow):
         self.freeSlots = freeSlots
         self.slotsWithDeliverableBattsToUser = self.ControlCenter_obj.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER":True})
 
-
         if not self.attendingUser:
             self.userInteractionTimer = self.currentGlobalTime
+        
+        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate is not None:
+            if 1 <= self.moduleStatusPanelToUpdate.value <= 8:
+                self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -279,8 +323,7 @@ class MainWindow(QMainWindow):
             self.show_window[WINS.LOCK_SCREEN]()
 
         self.attendingUser = True
-        self.ControlCenter_obj.turnOnLedStripsBasedOnState()
-
+        
         if cardId < 0:
             errorMsg = "ERROR AL LEER TARJETA! INTENTE DE NUEVO"
             self.windows[WINS.LOCK_SCREEN].text = errorMsg
@@ -302,13 +345,18 @@ class MainWindow(QMainWindow):
             manyUsersFoundMsg = f"ERROR DE BASE DE DATOS: MULTIPLICIDAD DE USUARIOS DETECTADA."
             self.windows[WINS.LOCK_SCREEN].text = manyUsersFoundMsg
             QTimer.singleShot(2000, self.workFlowReset)
-            raise None
+            return None
         
+        self.ControlCenter_obj.turnOnLedStripsBasedOnState()
         self.user = users[0]
         userName = f"{self.user['firstName']} {self.user['lastName']}"
         userFoundMsg = f"BIENVENID@ {userName}"
-        self.windows[WINS.LOCK_SCREEN].text = userFoundMsg      
-        QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
+        self.windows[WINS.LOCK_SCREEN].text = userFoundMsg
+
+        if not self.user["superAccess"]:      
+            QTimer.singleShot(3000, self.show_window[WINS.OPTIONS_PANEL])
+        else:
+            QTimer.singleShot(3000, self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL])
         return None
     
 
@@ -373,7 +421,8 @@ class MainWindow(QMainWindow):
         else:
             msg = "¡BATERÍAS INGRESADAS EXITOSAMENTE!"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
-            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
@@ -460,7 +509,8 @@ class MainWindow(QMainWindow):
         else:
             msg = "¡BATERÍAS RETIRADAS EXITOSAMENTE!"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
-            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["OUTPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
@@ -471,19 +521,26 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(2000, partial(self.windows[WINS.USER_PROMPT_PANEL].setText, msg))
             QTimer.singleShot(4000, self.workFlowReset)
         return None
-    
 
 
+# (4) ---------- SUPER ACCESS OPTIONS PANEL WINDOW WORKFLOW -----------(4)
+
+    def SuperAccessOptionsPanelWindow_workflow(self, moduleAddress):
+        self.moduleStatusPanelToUpdate = moduleAddress
+        if 1 <= self.moduleStatusPanelToUpdate.value <= 8:
+            self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
+        return None
 
 
-
-# (4) ------------ OTHER RELEVANT FUNCTIONS ------------------- (4)
+# (5) ------------ OTHER RELEVANT FUNCTIONS ------------------- (5)
 
     def workFlowReset(self):
         if self.user is not None:
-            updateUsersNumBatts({"cardId":self.user["cardId"]}, self.user["numBatts"])
+            if not self.user["superAccess"]:
+                updateUsersNumBatts({"cardId":self.user["cardId"]}, self.user["numBatts"])
         
         self.user = None
+        self.moduleStatusPanelToUpdate = None
         self.checkingForUserAndBatteryInteraction = False
         self.hardware_setup()
         resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
