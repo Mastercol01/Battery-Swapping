@@ -234,7 +234,7 @@ class BatterySlotModule
                 rpy2net_flipSolenoidsStates(p_canMsg->data);
                 break;
                 case canUtils::rpy2net_SET_LED_STRIP_STATE_OF_BATTERY_SLOT_MODULE:
-                rpy2net_setLedStripState(p_canMsg->data);
+                    (p_canMsg->data);
                 break;
                 case canUtils::rpy2net_RESET_BATTERY_CAN_BUS_ERROR_STATE_AND_TIMER:
                 rpy2net_resetBatteryCanBusErrorAndTimer();
@@ -297,7 +297,7 @@ void setup(){
   // Battery CAN Network standard set-up.
   canUtils::stdCanNetworkSetUp(canNetworkBattery);
 
-}
+}        
 
 void loop(){
     
