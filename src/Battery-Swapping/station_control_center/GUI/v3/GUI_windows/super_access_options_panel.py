@@ -31,12 +31,12 @@ class SuperAccessOptionsPanelWindow(QWidget):
 
         for moduleAddress in self.btns.keys():
             self.btns[moduleAddress].setIcon(QIcon(moduleSelectionBtnPath))
-            self.btns[moduleAddress].setIconSize(QSize(150, 150))
+            self.btns[moduleAddress].setIconSize(QSize(100, 100))
             self.btns[moduleAddress].setText(f"{moduleAddress}".replace("MODULE_ADDRESS.", ""))
             font = self.btns[moduleAddress].font()
-            font.setPointSize(15)
+            font.setPointSize(13)
             self.btns[moduleAddress].setFont(font)
-            self.btns[moduleAddress].setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            self.btns[moduleAddress].setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             self.btns[moduleAddress].setStyleSheet("border-radius: 10px; border: 1px solid black; padding: 10px;")
 
         
