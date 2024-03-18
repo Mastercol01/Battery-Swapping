@@ -32,8 +32,8 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
 
         self.valueLabels = {}
-        for i, name in enumerate(self.SLOT_STATES_LABEL_NAMES):
-            nameLabel  = QLabel(name)
+        for i, (name, labelName) in enumerate(self.SLOT_STATES_LABEL_NAMES.items()):
+            nameLabel  = QLabel(labelName)
             font = self.label.font()
             font.setPointSize(15)
             nameLabel.setFont(font)
@@ -56,13 +56,17 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
         return None
     
     def update(self, slotAddress):
-        if not (0 < slotAddress.value < 9):
+        if slotAddress not in self.ControlCenter_obj.SLOT_ADDRESSES:
             return None
+        self.label.setText(f"STATES OF: {str(slotAddress).replace('MODULE_ADDRESS.', '')}")
 
-        self.label.setText(f"STATES OF: {str(slotAddress).replace('MODULE_ADDRESS', '')}")
         for key in self.valueLabels:
-            self.valueLabels[key].setText(str(getattr(self.ControlCenter_obj.modules[slotAddress], key)))
-        
+            value = str(getattr(self.ControlCenter_obj.modules[slotAddress], key))
+
+            if key == "ledStripState":
+                value = value.replace('LED_STRIP_STATE', '')
+
+            self.valueLabels[key].setText(value)
         return None
     
     def clear(self):

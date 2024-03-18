@@ -9,6 +9,7 @@ from GUI_windows.options_panel import OptionsPanelWindow
 from GUI_windows.user_prompt_panel import UserPromptPanelWindow
 from GUI_windows.super_access_options_panel import SuperAccessOptionsPanelWindow
 from GUI_windows.super_access_slot_status_panel import SuperAccessSlotStatusPanelWindow
+from GUI_windows.super_access_eight_channel_relay_status_panel import SuperAccessEightChannelRelayStatusPanel
 
 from PyQt5.QtGui import (
     QFont,
@@ -72,6 +73,7 @@ class WINS(Enum):
     USER_PROMPT_PANEL = 3
     SUPER_ACCESS_OPTIONS_PANEL = 4
     SUPER_ACCESS_SLOT_STATUS_PANEL = 5
+    SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL = 6
 
 
 class MainWindowSignals(QObject):
@@ -147,8 +149,9 @@ class MainWindow(QMainWindow):
             WINS.OPTIONS_PANEL     : OptionsPanelWindow(),
             WINS.USER_PROMPT_PANEL : UserPromptPanelWindow(),
 
-            WINS.SUPER_ACCESS_OPTIONS_PANEL      : SuperAccessOptionsPanelWindow(),
-            WINS.SUPER_ACCESS_SLOT_STATUS_PANEL  : SuperAccessSlotStatusPanelWindow(self.ControlCenter_obj)
+            WINS.SUPER_ACCESS_OPTIONS_PANEL                    : SuperAccessOptionsPanelWindow(),
+            WINS.SUPER_ACCESS_SLOT_STATUS_PANEL                : SuperAccessSlotStatusPanelWindow(self.ControlCenter_obj),
+            WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL : SuperAccessEightChannelRelayStatusPanel(self.ControlCenter_obj)
         }
         
         for key in self.windows.keys():
@@ -159,7 +162,7 @@ class MainWindow(QMainWindow):
         for key in self.windows[WINS.OPTIONS_PANEL].btns.keys():
             self.windows[WINS.OPTIONS_PANEL].clickedConnectBtn(key, partial(self.OptionsPanelWindow_workFlow, key))
 
-        for key in self.ControlCenter_obj.SLOT_ADDRESSES:
+        for key in self.ControlCenter_obj.SLOT_ADDRESSES + [self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS]:
             self.windows[WINS.SUPER_ACCESS_OPTIONS_PANEL].clickedConnectBtn(key, partial(self.SuperAccessOptionsPanelWindow_workflow, key))
 
 
@@ -213,6 +216,11 @@ class MainWindow(QMainWindow):
             self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
             self.moduleStatusPanelToUpdate = None
             self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].clear()
+
+        elif self.currentWindow == WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL:
+            self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
+            self.moduleStatusPanelToUpdate = None
+            self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].clear()
         
         
         return None
@@ -243,6 +251,7 @@ class MainWindow(QMainWindow):
         return None
     
     def hardware_setup(self):
+        self.ControlCenter_obj.modules[self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
         self.ControlCenter_obj.turnOffAllLedStrips()
         self.ControlCenter_obj.secureAllSlots()
         self.ControlCenter_obj.turnOnBmsSolenoidsWhereWise()
@@ -288,9 +297,12 @@ class MainWindow(QMainWindow):
         if not self.attendingUser:
             self.userInteractionTimer = self.currentGlobalTime
         
-        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate is not None:
-            if 1 <= self.moduleStatusPanelToUpdate.value <= 8:
-                self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate in self.ControlCenter_obj.SLOT_ADDRESSES:
+            self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+
+        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
+            self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
+
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -527,8 +539,12 @@ class MainWindow(QMainWindow):
 
     def SuperAccessOptionsPanelWindow_workflow(self, moduleAddress):
         self.moduleStatusPanelToUpdate = moduleAddress
-        if 1 <= self.moduleStatusPanelToUpdate.value <= 8:
+
+        if moduleAddress in self.ControlCenter_obj.SLOT_ADDRESSES:
             self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
+
+        elif moduleAddress == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
+            self.show_window[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL]()
         return None
 
 
