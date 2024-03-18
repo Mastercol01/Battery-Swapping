@@ -10,6 +10,7 @@ from GUI_windows.user_prompt_panel import UserPromptPanelWindow
 from GUI_windows.super_access_options_panel import SuperAccessOptionsPanelWindow
 from GUI_windows.super_access_slot_status_panel import SuperAccessSlotStatusPanelWindow
 from GUI_windows.super_access_eight_channel_relay_status_panel import SuperAccessEightChannelRelayStatusPanel
+from GUI_windows.super_access_battery_status_panel import SuperAccessBatteryStatusPanelWindow
 
 from PyQt5.QtGui import (
     QFont,
@@ -74,6 +75,7 @@ class WINS(Enum):
     SUPER_ACCESS_OPTIONS_PANEL = 4
     SUPER_ACCESS_SLOT_STATUS_PANEL = 5
     SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL = 6
+    SUPER_ACCESS_BATTERY_STATUS_PANEL = 7
 
 
 class MainWindowSignals(QObject):
@@ -151,7 +153,8 @@ class MainWindow(QMainWindow):
 
             WINS.SUPER_ACCESS_OPTIONS_PANEL                    : SuperAccessOptionsPanelWindow(),
             WINS.SUPER_ACCESS_SLOT_STATUS_PANEL                : SuperAccessSlotStatusPanelWindow(self.ControlCenter_obj),
-            WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL : SuperAccessEightChannelRelayStatusPanel(self.ControlCenter_obj)
+            WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL : SuperAccessEightChannelRelayStatusPanel(self.ControlCenter_obj),
+            WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL             : SuperAccessBatteryStatusPanelWindow(self.ControlCenter_obj)
         }
         
         for key in self.windows.keys():
@@ -195,7 +198,7 @@ class MainWindow(QMainWindow):
         # Add go-forward button
         goForwardIcon = self.style().standardIcon(QStyle.SP_ArrowRight)
         goForwardButtonAction = QAction(QIcon(goForwardIcon), "Go Forward", self)
-        #goForwardButtonAction.triggered.connect(someFunc)
+        goForwardButtonAction.triggered.connect(self.goForward)
         toolbar.addAction(goForwardButtonAction)
         return None 
     def showAboutUsSection(self):
@@ -216,13 +219,20 @@ class MainWindow(QMainWindow):
             self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
             self.moduleStatusPanelToUpdate = None
             self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].clear()
+            self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].clear()
 
         elif self.currentWindow == WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
             self.moduleStatusPanelToUpdate = None
             self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].clear()
-        
-        
+
+        elif self.currentWindow == WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL:
+            self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
+            
+        return None
+    def goForward(self):
+        if self.currentWindow == WINS.SUPER_ACCESS_SLOT_STATUS_PANEL:
+            self.show_window[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL]()
         return None
     
 
@@ -251,7 +261,6 @@ class MainWindow(QMainWindow):
         return None
     
     def hardware_setup(self):
-        self.ControlCenter_obj.modules[self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS]._debugPrint()
         self.ControlCenter_obj.turnOffAllLedStrips()
         self.ControlCenter_obj.secureAllSlots()
         self.ControlCenter_obj.turnOnBmsSolenoidsWhereWise()
@@ -299,6 +308,7 @@ class MainWindow(QMainWindow):
         
         elif self.user["superAccess"] and self.moduleStatusPanelToUpdate in self.ControlCenter_obj.SLOT_ADDRESSES:
             self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+            self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
 
         elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
             self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()

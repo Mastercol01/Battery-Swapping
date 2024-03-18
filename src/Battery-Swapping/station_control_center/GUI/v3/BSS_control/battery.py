@@ -369,7 +369,6 @@ class Battery:
         print(f"canProceedToBeCharged: {self.canProceedToBeCharged}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
-        #print(f"canBecomeDeliverableToUser: {self.canBecomeDeliverableToUser}")
         print(f"proccessToStartChargeIsActive: {self.proccessToStartChargeIsActive}")
         print(f"proccessToFinishChargeIsActive: {self.proccessToFinishChargeIsActive}")
         print(f"isBusyWithChargeProcess: {self.isBusyWithChargeProcess}")

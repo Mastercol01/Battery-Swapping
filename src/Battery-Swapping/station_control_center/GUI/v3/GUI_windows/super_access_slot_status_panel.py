@@ -20,10 +20,9 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
         super().__init__()   
 
         self.ControlCenter_obj = ControlCenter_obj
-
         self.mainLayout = QVBoxLayout()
         self.subLayout  = QGridLayout()
-        self.containerWidget = QWidget()
+
 
         self.label = QLabel("STATES OF: ")
         font = self.label.font()
@@ -34,23 +33,22 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
         self.valueLabels = {}
         for i, (name, labelName) in enumerate(self.SLOT_STATES_LABEL_NAMES.items()):
             nameLabel  = QLabel(labelName)
-            font = self.label.font()
+            font = nameLabel.font()
             font.setPointSize(15)
             nameLabel.setFont(font)
             nameLabel.setAlignment(Qt.AlignCenter)
             self.subLayout.addWidget(nameLabel, i, 0)
 
             self.valueLabels[name] = QLabel("")
-            font = self.label.font()
+            font = self.valueLabels[name].font()
             font.setPointSize(15)
             self.valueLabels[name].setFont(font)
             self.valueLabels[name].setAlignment(Qt.AlignCenter)
             self.subLayout.addWidget(self.valueLabels[name], i, 1)
-        self.containerWidget.setLayout(self.subLayout)
+
 
         self.mainLayout.addWidget(self.label)
-        self.mainLayout.addWidget(self.containerWidget)
-
+        self.mainLayout.addLayout(self.subLayout)
         self.setLayout(self.mainLayout)
     
         return None
@@ -64,7 +62,7 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
             value = str(getattr(self.ControlCenter_obj.modules[slotAddress], key))
 
             if key == "ledStripState":
-                value = value.replace('LED_STRIP_STATE', '')
+                value = value.replace('LED_STRIP_STATE.', '')
 
             self.valueLabels[key].setText(value)
         return None

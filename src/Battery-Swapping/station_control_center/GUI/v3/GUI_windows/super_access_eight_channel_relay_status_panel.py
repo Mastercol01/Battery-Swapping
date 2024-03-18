@@ -10,7 +10,6 @@ class SuperAccessEightChannelRelayStatusPanel(QWidget):
 
         self.mainLayout = QVBoxLayout()
         self.subLayout  = QGridLayout()
-        self.containerWidget = QWidget()
 
         self.label = QLabel("STATES OF: ")
         font = self.label.font()
@@ -21,23 +20,21 @@ class SuperAccessEightChannelRelayStatusPanel(QWidget):
         self.valueLabels = {}
         for i, name in enumerate([f"CHANNEL{j}" for j in range(8)] + ["CURRENT_GLOBAL_TIME"]):
             nameLabel  = QLabel(name)
-            font = self.label.font()
+            font = nameLabel.font()
             font.setPointSize(15)
             nameLabel.setFont(font)
             nameLabel.setAlignment(Qt.AlignCenter)
             self.subLayout.addWidget(nameLabel, i, 0)
 
             self.valueLabels[i] = QLabel("")
-            font = self.label.font()
+            font = self.valueLabels[i].font()
             font.setPointSize(15)
             self.valueLabels[i].setFont(font)
             self.valueLabels[i].setAlignment(Qt.AlignCenter)
             self.subLayout.addWidget(self.valueLabels[i], i, 1)
-        self.containerWidget.setLayout(self.subLayout)
 
         self.mainLayout.addWidget(self.label)
-        self.mainLayout.addWidget(self.containerWidget)
-
+        self.mainLayout.addLayout(self.subLayout)
         self.setLayout(self.mainLayout)
     
         return None
