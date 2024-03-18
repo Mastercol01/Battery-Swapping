@@ -201,7 +201,7 @@ class SuperAccessBatteryStatusPanelWindow(QWidget):
     def update(self, slotAddress):
         if slotAddress not in self.ControlCenter_obj.SLOT_ADDRESSES:
             return None
-        self.mainTitle.setText(f"STATES BATTERY IN: {str(slotAddress).replace('MODULE_ADDRESS.', '')}")
+        self.mainTitle.setText(f"STATES OF BATTERY IN: {str(slotAddress).replace('MODULE_ADDRESS.', '')}")
 
         for key in self.addressabilityLabels:
             value = getattr(self.ControlCenter_obj.modules[slotAddress].battery, key)
