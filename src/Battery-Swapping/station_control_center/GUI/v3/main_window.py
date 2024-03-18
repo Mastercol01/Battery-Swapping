@@ -295,14 +295,15 @@ class MainWindow(QMainWindow):
         if not self.attendingUser:
             self.userInteractionTimer = self.currentGlobalTime
         
-        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate in self.ControlCenter_obj.SLOT_ADDRESSES:
-            self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
-            self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+        elif self.user is not None:
+            if self.user["superAccess"] and self.moduleStatusPanelToUpdate in self.ControlCenter_obj.SLOT_ADDRESSES:
+                self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+                self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
 
-        elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
-            self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
+            elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
+                self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
 
-        if self.attendingUser and (self.currentWindow not in [WINS.OPTIONS_PANEL, WINS.USER_PROMPT_PANEL]) and (not self.isBootingUp) and (not self.isShuttingDown):
+        if self.attendingUser and (self.currentWindow not in [WINS.OPTIONS_PANEL, WINS.USER_PROMPT_PANEL]) and (not self.isBootingUp) and (not self.isShuttingDown) and self.user is not None:
             self.ControlCenter_obj.turnOnLedStripsBasedOnState()
 
         return None
