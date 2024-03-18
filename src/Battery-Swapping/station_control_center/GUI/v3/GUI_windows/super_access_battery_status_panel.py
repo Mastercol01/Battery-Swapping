@@ -236,7 +236,7 @@ class SuperAccessBatteryStatusPanelWindow(QWidget):
         return None
     
     def clear(self):
-        self.mainTitle.setText(f"STATES BATTERY IN: ")
+        self.mainTitle.setText(f"STATES OF BATTERY IN: ")
         
         for key in self.addressabilityLabels:
             self.addressabilityLabels[key].setText("")
