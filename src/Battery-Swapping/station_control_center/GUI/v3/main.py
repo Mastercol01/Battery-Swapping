@@ -15,6 +15,6 @@ palette.setColor(QPalette.Window, Qt.white)
 app.setPalette(palette)
 
 window = MainWindow()
-window.show()
+window.showMaximized()
 
 app.exec()

@@ -240,7 +240,8 @@ class ControlCenter:
     
     def turnOffAllBmsSolenoidsIfPossible(self):
         bmsShouldBeOff = self.getSlotsThatMatchStates({"BATTERY_BMS_IS_ON"                   : True,
-                                                       "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False})
+                                                       "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False,
+                                                       "BATTERY_RELAY_CHANNEL_IS_ON"         : False})
         for slotAddress in bmsShouldBeOff:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
         return None
@@ -304,23 +305,27 @@ class ControlCenter:
 
         try:
             batteryCanProceedToBeCharged = self.modules[slotAddress].battery.canProceedToBeCharged
-            batteryAndDoorSolenoidsAreOn = self.modules[slotAddress].batteryAndDoorSolenoidsAreOn
+            doorLockSolenoidIsOn         = self.modules[slotAddress].doorLockSolenoidState
+            batteryLockSolenoidIsOn      = self.modules[slotAddress].batteryLockSolenoidState
+            batteryRelayChannelIsOn      = self.modules[slotAddress].battery.relayChanneOn
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
             
 
-        if batteryCanProceedToBeCharged and batteryAndDoorSolenoidsAreOn:
+        if batteryCanProceedToBeCharged and (not doorLockSolenoidIsOn) and (not batteryLockSolenoidIsOn) and (not batteryRelayChannelIsOn):
             # We charge batteries that are chargable (i.e: voltage >= 42 and not isCharging), 
             # and also secured in their slot.
             self.SIGNALS_DICT_START_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
             self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
-            QTimer(5000, partial(self.SIGNALS_DICT_START_CHARGE[slotAddress].emit, False))
+            QTimer.singleShot(5000, partial(self.SIGNALS_DICT_START_CHARGE[slotAddress].emit, False))
+            print(f"batteryCanProceedToBeCharged: {batteryCanProceedToBeCharged}")
+            print(f"startChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
 
-        elif not batteryAndDoorSolenoidsAreOn:
-            msg = "WARNING: Battery could proceed to be charged, but it is unsafe to do so"
+        elif doorLockSolenoidIsOn or batteryLockSolenoidIsOn:
+            msg = f"WARNING: Battery on {slotAddress} could proceed to be charged, but it is unsafe to do so"
             msg = f"{msg} as long as it is not secured in place. Ignoring command."
             warnings.warn(msg)
             return None
@@ -343,7 +348,7 @@ class ControlCenter:
             batteryIsCharged               = self.modules[slotAddress].battery.isCharged
             batteryIsBusyWithChargeProcess = self.modules[slotAddress].battery.isBusyWithChargeProcess
             batteryBmsHasCanBusError       = self.modules[slotAddress].battery.bmsHasCanBusError
-            batteryRelayChannelOn          = self.modules[slotAddress].battery.relayChanneOn
+            batteryRelayChannelIsOn        = self.modules[slotAddress].battery.relayChanneOn
         except AttributeError: 
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
 
@@ -354,9 +359,9 @@ class ControlCenter:
 
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0,  delay=10000)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
-            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
+            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
 
             if forcedStop:
                 msg = f"WARNING: PERFORMING MANUAL FORCED STOP OF THE CHARGING PROCESS FOR Battery{slotAddress}."
@@ -365,18 +370,24 @@ class ControlCenter:
                 msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
 
             warnings.warn(msg)
+            
+            print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
             
-        elif batteryIsCharged and not batteryIsBusyWithChargeProcess:
+        elif batteryIsCharged and (not batteryIsBusyWithChargeProcess) and batteryRelayChannelIsOn:
             # When the battery has finished its charging process, we shut down the charger in the correct way.
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
-            QTimer.singleShot(5000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
+            QTimer.singleShot(5000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
+
+            print(f"batteryIsCharged: {batteryIsCharged}")
+            print(f"not batteryIsBusyWithChargeProcess: {not batteryIsBusyWithChargeProcess}")
+            print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
         
-        elif batteryBmsHasCanBusError and batteryRelayChannelOn:
+        elif batteryBmsHasCanBusError and batteryRelayChannelIsOn:
             # It may be that the battery becomes incommunicated due to an error in the BMS's CAN-bus.
             # If that happens we want to make sure that charging is physically impossible. Whether the 
             # charge is still on going, it's already finished or just never took place is unknown in this case.
@@ -387,14 +398,19 @@ class ControlCenter:
         
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1,  delay=10000)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0,  delay=10000)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
-            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE.emit, False))
+            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
 
             msg = f"WARNING: Battery{slotAddress} has become incommunicated (bmsHasCanBusError == True)."
             msg = f"{msg}. due to damage to the BMS's can bus. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
             warnings.warn(msg)
+
+            print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
+        
+        
+        return None
     
 
     def startChargeOfSlotBatteriesIfAllowable(self):

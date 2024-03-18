@@ -20,11 +20,11 @@ class DateClockWidget(QWidget):
         self.timeLabel = QLabel()
 
         font = self.dateLabel.font()
-        font.setPointSize(10)
+        font.setPointSize(25)
         self.dateLabel.setFont(font)
 
         font = self.timeLabel.font()
-        font.setPointSize(45)
+        font.setPointSize(60)
         self.timeLabel.setFont(font)
 
         self.dateLabel.setAlignment(Qt.AlignCenter)
@@ -74,7 +74,7 @@ class LockScreenWindow(QWidget):
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
         self.text = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
-        self.fontSize = 25
+        self.fontSize = 30
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.dateClock)

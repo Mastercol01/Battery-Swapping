@@ -26,7 +26,7 @@ class SuperAccessSlotStatusPanelWindow(QWidget):
 
         self.label = QLabel("STATES OF: ")
         font = self.label.font()
-        font.setPointSize(25)
+        font.setPointSize(30)
         self.label.setFont(font)
         self.label.setAlignment(Qt.AlignCenter)
 

@@ -219,7 +219,7 @@ class Battery:
 
     @property
     def isAddressable(self)->bool:
-        return self.inSlot and self.bmsON and not self.waitingForAllData and not self.bmsHasCanBusError
+        return self.inSlot and self.bmsON and (not self.waitingForAllData) and (not self.bmsHasCanBusError)
 
     @property
     def voltage(self)->float:
@@ -269,11 +269,11 @@ class Battery:
     
     @property
     def isCharged(self)->bool:
-        return self.voltage >= 40 and not self.isCharging
+        return (self.voltage >= 41 or self.soc > 95) and (not self.isCharging)
 
     @property
     def canProceedToBeCharged(self)->bool:
-        return self.isAddressable and not self.isDamaged and not self.isCharged and not self.isBusyWithChargeProcess
+        return self.isAddressable and (not self.isDamaged) and (not self.isCharged) and (not self.isBusyWithChargeProcess)
     
     @property
     def timeUntilFullCharge(self)->float:
@@ -299,7 +299,7 @@ class Battery:
     
     @property
     def isDeliverableToUser(self)->bool:
-        return self.isAddressable and not self.isDamaged and self.isCharged and not self.isBusyWithChargeProcess
+        return self.isAddressable and (not self.isDamaged) and self.isCharged and (not self.isBusyWithChargeProcess)
     
     @property
     def proccessToStartChargeIsActive(self)->bool:

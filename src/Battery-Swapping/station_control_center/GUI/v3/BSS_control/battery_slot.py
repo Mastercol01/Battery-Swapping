@@ -147,10 +147,6 @@ class BatterySlot:
             res = np.nan
         return res
     
-    @property
-    def batteryAndDoorSolenoidsAreOn(self):
-        res = self.solenoidsStates
-        return res[1] and res[2]
     
     def addCanMsgToQueue(self, canMsg : can_frame)->None:
         self.SIGNALS_DICT[self.moduleAddressToControl].emit(canMsg.to_canStr())

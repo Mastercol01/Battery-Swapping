@@ -13,8 +13,6 @@ from GUI_windows.super_access_eight_channel_relay_status_panel import SuperAcces
 from GUI_windows.super_access_battery_status_panel import SuperAccessBatteryStatusPanelWindow
 
 from PyQt5.QtGui import (
-    QFont,
-    QPixmap,
     QIcon)
 
 from PyQt5.QtCore import (
@@ -27,15 +25,6 @@ from PyQt5.QtCore import (
 
 from PyQt5.QtWidgets import (
     QMainWindow,
-    QWidget, 
-    QLabel, 
-    QPushButton,
-    QHBoxLayout, 
-    QVBoxLayout,
-    QStackedLayout,
-    QLayout,
-    QSizePolicy,
-    qApp,
     QToolBar,
     QAction,
     QStyle,
@@ -52,7 +41,7 @@ from BSS_control.thread_workers import (
 
 from BSS_control.CanUtils import MODULE_ADDRESS
 from BSS_control.control_center import ControlCenter
-from BSS_control.battery_slot import LED_STRIP_STATE, SOLENOID_NAME
+from BSS_control.battery_slot import SOLENOID_NAME
 
 
 
@@ -87,8 +76,8 @@ class MainWindowSignals(QObject):
 
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
-    USER_INTERACTION_TIMEOUT = 300000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 1500
+    USER_INTERACTION_TIMEOUT = 180000
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 750
     
 
     def __init__(self):
@@ -178,7 +167,7 @@ class MainWindow(QMainWindow):
 
     def toolbar_setup(self):
         toolbar = QToolBar("toolbar")
-        toolbar.setIconSize(QSize(25, 25))
+        toolbar.setIconSize(QSize(60, 60))
         self.addToolBar(toolbar)
 
         # Add info button
@@ -228,7 +217,7 @@ class MainWindow(QMainWindow):
 
         elif self.currentWindow == WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
-            
+
         return None
     def goForward(self):
         if self.currentWindow == WINS.SUPER_ACCESS_SLOT_STATUS_PANEL:
@@ -313,6 +302,9 @@ class MainWindow(QMainWindow):
         elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
             self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
 
+        if self.attendingUser and (self.currentWindow not in [WINS.OPTIONS_PANEL, WINS.USER_PROMPT_PANEL]) and (not self.isBootingUp) and (not self.isShuttingDown):
+            self.ControlCenter_obj.turnOnLedStripsBasedOnState()
+
         return None
     
     def updateGlobalTimerVars30000(self):
@@ -323,12 +315,13 @@ class MainWindow(QMainWindow):
             if self.currentGlobalTime - self.timeInsideAboutUsSection > 30000:
                 self.show_window[WINS.LOCK_SCREEN]()
 
-        if not self.attendingUser:
-            #self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable()
-            #QTimer.singleShot(1000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
-            pass
-        elif self.currentGlobalTime - self.userInteractionTimer > self.USER_INTERACTION_TIMEOUT:
-            self.workFlowReset()
+        if self.attendingUser:
+            if self.currentGlobalTime - self.userInteractionTimer > self.USER_INTERACTION_TIMEOUT:
+                self.workFlowReset()
+
+        if (not self.isBootingUp) and (not self.isShuttingDown):
+            self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable() 
+            QTimer.singleShot(8000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
         return None
 
 
@@ -592,13 +585,14 @@ class MainWindow(QMainWindow):
     
     def exitCall(self):
         self.isShuttingDown = True
+        self.workFlowReset()
         self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
         self.show_window[WINS.LOCK_SCREEN]()
         self.hardware_shutdown()
         self.SIGNALS.terminate_RfidReadWorker.emit()
-        QTimer.singleShot(3000, self.SIGNALS.terminate_SerialReadWorker.emit)
-        QTimer.singleShot(8000, self.readyToCloseAppTrue)
-        QTimer.singleShot(8500, self.close)
+        QTimer.singleShot(4000, self.SIGNALS.terminate_SerialReadWorker.emit)
+        QTimer.singleShot(9000, self.readyToCloseAppTrue)
+        QTimer.singleShot(10000, self.close)
         return None
 
     def closeEvent(self, e):
