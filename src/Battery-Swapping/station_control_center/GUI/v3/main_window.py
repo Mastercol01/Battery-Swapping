@@ -77,7 +77,7 @@ class MainWindowSignals(QObject):
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
     USER_INTERACTION_TIMEOUT = 180000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 750
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 1000
     
 
     def __init__(self):
