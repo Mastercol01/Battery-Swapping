@@ -77,7 +77,7 @@ class MainWindowSignals(QObject):
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
     USER_INTERACTION_TIMEOUT = 180000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 1000
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 1750
     
 
     def __init__(self):
@@ -322,7 +322,7 @@ class MainWindow(QMainWindow):
 
         if (not self.isBootingUp) and (not self.isShuttingDown):
             self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable() 
-            QTimer.singleShot(8000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
+            QTimer.singleShot(9000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
         return None
 
 
