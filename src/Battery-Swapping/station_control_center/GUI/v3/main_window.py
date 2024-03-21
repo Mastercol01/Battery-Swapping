@@ -77,7 +77,7 @@ class MainWindowSignals(QObject):
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
     USER_INTERACTION_TIMEOUT = 180000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 1750
+    BATTERY_INTERACTION_EMIT_TIMEOUT = 1000
     
 
     def __init__(self):
@@ -218,6 +218,9 @@ class MainWindow(QMainWindow):
         elif self.currentWindow == WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
 
+        elif (self.currentWindow == WINS.USER_PROMPT_PANEL) and self.attendingUser and (self.numBattsStationDelta == 0):
+            self.show_window[WINS.OPTIONS_PANEL]()
+            
         return None
     def goForward(self):
         if self.currentWindow == WINS.SUPER_ACCESS_SLOT_STATUS_PANEL:

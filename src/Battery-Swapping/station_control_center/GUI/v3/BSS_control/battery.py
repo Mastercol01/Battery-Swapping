@@ -124,6 +124,7 @@ class Battery:
         self.relayChanneOn = False
         self.proccessToStartChargeIsActive_setter(False)     
         self.proccessToFinishChargeIsActive_setter(False)
+        self._isAlwaysDamaged = False
         return None
 
 
@@ -251,7 +252,9 @@ class Battery:
     
     @property
     def isDamaged(self)->bool:
-        return self.hasFatalWarnings or self.bmsHasCanBusError or any([self.soc < 0, self.voltage < 0, self.current < 0])
+        if any([self.soc < 0, self.voltage < 0, self.current < 0]):
+            self._isAlwaysDamaged = True
+        return self.hasFatalWarnings or self.bmsHasCanBusError or self._isAlwaysDamaged
     
     @property
     def temps(self)->Dict[str, float]:
@@ -265,11 +268,11 @@ class Battery:
     
     @property
     def isCharging(self)->bool:
-        return self.current > 0
+        return self.current > 0.4
     
     @property
     def isCharged(self)->bool:
-        return (self.voltage >= 41 or self.soc > 95) and (not self.isCharging)
+        return (self.voltage >= 42) and (not self.isCharging)
 
     @property
     def canProceedToBeCharged(self)->bool:

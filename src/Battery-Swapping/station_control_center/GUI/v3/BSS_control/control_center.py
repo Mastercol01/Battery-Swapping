@@ -317,8 +317,8 @@ class ControlCenter:
             # and also secured in their slot.
             self.SIGNALS_DICT_START_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1, delay=750)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1500)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1, delay=500)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1000)
             QTimer.singleShot(6000, partial(self.SIGNALS_DICT_START_CHARGE[slotAddress].emit, False))
             print(f"batteryCanProceedToBeCharged: {batteryCanProceedToBeCharged}")
             print(f"startChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
@@ -378,8 +378,8 @@ class ControlCenter:
             # When the battery has finished its charging process, we shut down the charger in the correct way.
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0, delay=750)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1500)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0, delay=500)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1000)
             QTimer.singleShot(6000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
 
             print(f"batteryIsCharged: {batteryIsCharged}")
