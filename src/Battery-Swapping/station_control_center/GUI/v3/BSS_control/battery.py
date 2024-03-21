@@ -12,35 +12,6 @@ from BSS_control.CanUtils import (
     ACTIVITY_CODE)
 
 
-batteryVoltagesForInterpolation = 30 + 0.1*np.arange(122)
-batteryChargeTimesForInterpolation = np.array(
-[177.34895,    177.32961667, 177.29101667, 177.27165, 177.25233333,
-177.21355,    177.17483333, 177.1361,     177.07796667, 177.01991667,
-176.96181667, 176.9231,     176.86501667, 176.78758333, 176.72948333,
-176.67145,    176.59405,    176.51668333, 176.4393,     176.34256667,
-176.26518333, 176.14923333, 176.05256667, 175.95593333, 175.84003333,
-175.72398333, 175.58865,    175.45335,    175.31798333, 175.18265,
-175.02811667, 174.85423333, 174.69956667, 174.52573333, 174.31316667,
-174.11993333, 173.9075,     173.71433333, 173.48268333, 173.23161667,
-172.98033333, 172.70966667, 172.45833333, 172.16835,    171.85905,
-171.53023333, 171.18208333, 170.83398333, 170.42781667, 170.02163333,
-169.32525,   167.93226667, 165.26195,    162.85978333, 160.64756667,
-158.62843333, 156.6084,     154.66566667, 152.74218333, 150.79928333,
-148.75936667, 146.467,      143.92238333, 141.06715,    138.15401667,
-135.20273333, 132.30953333, 129.4363,     126.67925,    123.9419,
-121.3403,     118.85528333, 116.35053333, 113.98221667, 111.76906667,
-109.65301667, 107.71158333, 105.82806667, 104.06123333, 102.37181667,
-100.77986667,  99.22666667,  97.67303333,  96.21676667,  94.72176667,
-93.28525,     91.82913333,  90.39266667,  88.89791667,  87.42256667,
-85.92761667,  84.37466667,  82.86028333,  81.28778333,  79.67615,
-78.02576667,  76.35581667,  74.60815,     72.91908333,  71.26901667,
-69.61908333,  67.96913333,  66.455,       65.03761667,  63.65901667,
-62.31966667,  60.99906667,  59.75615,     58.51353333,  57.27091667,
-56.04766667,  54.78558333,  53.50378333,  52.14465,     50.66911667,
-49.0953,      46.95813333,  40.50658333,  32.15116667,  25.35266667,
-16.42386667,  0])
-batteryVoltage2TimeUntilFullCharge = interp1d(batteryVoltagesForInterpolation,batteryChargeTimesForInterpolation*60)
-
 
 @unique
 class BATTERY_WARNINGS(Enum):
@@ -78,16 +49,26 @@ class BATTERY_WARNINGS(Enum):
     STATE_OF_CHARGE                             = 31
 
 
+def voltage2TimePassed(voltage):
 
+    if voltage < 35.072:
+        timePassed = 103.630*voltage - 3111.774
+    
+    elif voltage < 41.697:
+        timePassed = -70.81*voltage**2 + 6552.578*voltage - 142189.681
+    
+    elif voltage < 42.1:
+        timePassed = 4665.0124*voltage - 186597.0223
 
+    return timePassed
 
 
 class Battery:
     DEQUE_MAXLEN = 10
     MAX_CHARGING_CURRENT = 12 #[A]
     WAITING_FOR_ALL_DATA_TIMEOUT = 4.33 #[s]
-    TOTAL_TIME_UNTIL_FULL_CHARGE = 10672  #[s] (From 30V to 42.1V)
-    PARTIAL_TIME_UNTIL_FULL_CHARGE = 3022 #[s] (From SOC=100% to 42.1V)
+    TOTAL_TIME_UNTIL_FULL_CHARGE = 11000  #[s] (From 30V to Full Charge)
+    PARTIAL_TIME_UNTIL_FULL_CHARGE = 9800 #[s] (From 30V to 42.1V)
     SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
     FATAL_BATTERY_WARNINGS = set()
    
@@ -281,14 +262,27 @@ class Battery:
     @property
     def timeUntilFullCharge(self)->float:
         if self.isCharged:
-            voltage_ = 42.1
-        elif self.voltage < 30: 
-            voltage_ = 30
-        elif self.voltage > 42.1:
-            voltage_ = 42.1
+            return 0
+        
+        if    self.voltage < 30.03: voltage_ = 30.03
+        elif  self.voltage > 42.10: voltage_ = 42.10
+        else: voltage_ = self.voltage
+
+        if voltage_ < 42.1:
+            timePassed    = voltage2TimePassed(voltage_)
+            timeRemaining = self.TOTAL_TIME_UNTIL_FULL_CHARGE - timePassed
+        
+        elif self.isCharging:
+            timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
+            timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
+            timeRemaining *= self.current/self.MAX_CHARGING_CURRENT
+
         else:
-            voltage_ = self.voltage
-        return float(batteryVoltage2TimeUntilFullCharge(voltage_))
+            timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
+            timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
+
+        return timeRemaining
+    
     
     @property
     def timeUntilFullChargeInStrFormat(self)->str|float:
@@ -396,7 +390,7 @@ class Battery:
 
 
 if __name__ == "__main__":
-    Battery_obj = Battery()
+    Battery_obj = Battery(MODULE_ADDRESS.SLOT1)
     Battery_obj.updateStatesFromBatterySlotModule(True, False, True)
     Battery_obj._debugPrint()
 
