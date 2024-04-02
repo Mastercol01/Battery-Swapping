@@ -6,8 +6,9 @@ from PyQt5.QtWidgets import QWidget, QLabel, QGridLayout, QVBoxLayout, QHBoxLayo
 
 class SuperAccessBatteryStatusPanelWindow(QWidget):
     TIMERS_LABEL_NAMES = {
-        "currentGlobalTime" : "CURRENT_GLOBAL_TIME",
-        "localTimer"        : "LOCAL_TIMER"
+        "currentGlobalTime"          : "CURRENT_GLOBAL_TIME",
+        "localTimer"                 : "LOCAL_TIMER",
+        "dataPacketsAreDamagedTimer" : "DATA_PACKETS_ARE_DAMAGED_TIMER"
     }
 
     ADDRESSABILITY_LABEL_NAMES = {
@@ -18,10 +19,11 @@ class SuperAccessBatteryStatusPanelWindow(QWidget):
         "isAddressable"     : "IS_ADDRESSABLE"
     }
     HEALTH_LABEL_NAMES = {
-        "isDamaged"         : "IS_DAMAGED",
-        "hasWarnings"       : "HAS_WARNINGS",
-        "hasFatalWarnings"  : "HAS_FATAL_WARNINGS",
-        "bmsHasCanBusError" : "BMS_HAS_CAN_BUS_ERROR",
+        "isDamaged"             : "IS_DAMAGED",
+        "hasWarnings"           : "HAS_WARNINGS",
+        "hasFatalWarnings"      : "HAS_FATAL_WARNINGS",
+        "bmsHasCanBusError"     : "BMS_HAS_CAN_BUS_ERROR",
+        "dataPacketsAreDamaged" : "DATA_PACKETS_ARE_DAMAGED"
     }
     ATTRS_LABEL_NAMES = {
         "voltage"                        : "VOLTAGE [V]",
@@ -29,7 +31,7 @@ class SuperAccessBatteryStatusPanelWindow(QWidget):
         "soc"                            : "SOC [%]",
         "maxTemp"                        : "MAX_TEMP [°C]",
         "isCharging"                     : "IS_CHARGING",
-        "isCharged"                      : "IS_CHARGED",
+        "isChargedEnough"                : "IS_CHARGED_ENOUGH",
         "canProceedToBeCharged"          : "CAN_PROCEED_TO_BE_CHARGED",
         "timeUntilFullChargeInStrFormat" : "TIME_UNTIL_FULL_CHARGE",
         "isDeliverableToUser"            : "IS_DELIVERABLE_TO_USER",

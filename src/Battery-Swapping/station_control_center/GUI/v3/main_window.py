@@ -325,7 +325,7 @@ class MainWindow(QMainWindow):
 
         if (not self.isBootingUp) and (not self.isShuttingDown):
             self.ControlCenter_obj.startChargeOfSlotBatteriesIfAllowable() 
-            QTimer.singleShot(9000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
+            QTimer.singleShot(15000, self.ControlCenter_obj.finishChargeOfSlotBatteriesIfAllowable)
         return None
 
 

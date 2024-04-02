@@ -4,6 +4,7 @@ from typing import Set, Dict
 from collections import deque
 from enum import Enum, unique
 from scipy.interpolate import interp1d
+from math import isnan
 
 from BSS_control.CanUtils import (
     can_frame,
@@ -62,15 +63,47 @@ def voltage2TimePassed(voltage):
 
     return timePassed
 
+# @property
+# def timeUntilFullCharge(self)->float:
+#     if self.isChargedEnough:
+#         return 0
+    
+#     if    self.voltage < 30.03: voltage_ = 30.03
+#     elif  self.voltage > 42.10: voltage_ = 42.10
+#     else: voltage_ = self.voltage
+
+#     if voltage_ < 42.1:
+#         timePassed    = voltage2TimePassed(voltage_)
+#         timeRemaining = self.TOTAL_TIME_UNTIL_FULL_CHARGE - timePassed
+    
+#     elif self.isCharging:
+#         timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
+#         timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
+#         timeRemaining *= self.current/self.MAX_CHARGING_CURRENT
+
+#     else:
+#         timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
+#         timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
+
+#     return timeRemaining
+
+# MAX_CHARGING_CURRENT = 12 #[A]
+# TOTAL_TIME_UNTIL_FULL_CHARGE = 11000  #[s] (From 30V to Full Charge)
+# PARTIAL_TIME_UNTIL_FULL_CHARGE = 9800 #[s] (From 30V to 42.1V)
+
 
 class Battery:
     DEQUE_MAXLEN = 10
     MAX_CHARGING_CURRENT = 12 #[A]
-    WAITING_FOR_ALL_DATA_TIMEOUT = 4.33 #[s]
-    TOTAL_TIME_UNTIL_FULL_CHARGE = 11000  #[s] (From 30V to Full Charge)
-    PARTIAL_TIME_UNTIL_FULL_CHARGE = 9800 #[s] (From 30V to 42.1V)
     SECONDS_PER_SOC_PERCENTAGE_INCREASE = 76.5 #[s/%]
+
+    BATTERY_IS_CHARGED_ENOUGH_SOC_THRESHOLD = 95 #[%]
+    BATTERY_IS_CHARGING_CURRENT_THRESHOLD = 0.6 #[A]
+
     FATAL_BATTERY_WARNINGS = set()
+    WAITING_FOR_ALL_DATA_TIMEOUT = 4.33*1000 #[ms]
+    DATA_PACKETS_ARE_DAMAGED_TIMEOUT = 4*60*1000 #[ms]
+    
    
 
     def __init__(self, moduleAddressToControl):
@@ -94,6 +127,7 @@ class Battery:
         # TIMERS
         self.localTimer = 0
         self.currentGlobalTime = 0
+        self.dataPacketsAreDamagedTimer = 0
 
         # ADDRESSABILITY STATUS
         self.inSlot = False
@@ -105,7 +139,7 @@ class Battery:
         self.relayChanneOn = False
         self.proccessToStartChargeIsActive_setter(False)     
         self.proccessToFinishChargeIsActive_setter(False)
-        self._isAlwaysDamaged = False
+        self.dataPacketsAreDamaged = False
         return None
 
 
@@ -147,6 +181,10 @@ class Battery:
     
     def updateCurrentGlobalTime(self, newCurrentGlobalTime : float)->None:
         self.currentGlobalTime = newCurrentGlobalTime
+
+        if self.currentGlobalTime - self.dataPacketsAreDamagedTimer > self.DATA_PACKETS_ARE_DAMAGED_TIMEOUT:
+            self.dataPacketsAreDamaged = False
+
         return None
 
     def updateStatesFromBatterySlotModule(self, inSlot:bool|float, bmsHasCanBusError:bool|float, bmsON:bool|float)->None:
@@ -184,24 +222,18 @@ class Battery:
         self.relayChanneOn = relayChannelOn
         return None
     
-    # NOTE: If (isAddressable == False) then:
-    #       self.voltage                   -> NaN   
-    #       self.current                   -> NaN 
-    #       self.soc                       -> NaN 
-    #       warnings                       -> set() 
-    #       fatalWarnings                  -> set() 
-    #       hasWarnings                    -> False
-    #       hasFatalWarnings               -> False
-    #       isDamaged                      -> False (unless bmsHasCanBusError==True in which case it's also True)
-    #       isCharging                     -> False
-    #       isCharged                      -> False
-    #       canProceedToBeCharged          -> False
-    #       timeUntilFullCharge            -> NaN
-    #       timeUntilFullChargeInStrFormat -> NaN
 
     @property
     def isAddressable(self)->bool:
-        return self.inSlot and self.bmsON and (not self.waitingForAllData) and (not self.bmsHasCanBusError)
+        if isnan(self.inSlot):
+            res = False
+        elif isnan(self.bmsON):
+            res = False
+        elif isnan(self.bmsHasCanBusError):
+            res = False
+        else:
+            res = self.inSlot and self.bmsON and (not self.waitingForAllData) and (not self.bmsHasCanBusError)
+        return res
 
     @property
     def voltage(self)->float:
@@ -224,18 +256,46 @@ class Battery:
         return self.warnings.intersection(self.FATAL_BATTERY_WARNINGS)
     
     @property
-    def hasWarnings(self)->bool:
-        return bool(self.warnings)
+    def hasWarnings(self)->bool|float:
+        if not self.isAddressable:
+            res = np.nan
+        else:
+            res = bool(self.warnings)
+        return res
         
     @property
-    def hasFatalWarnings(self)->bool:
-        return bool(self.fatalWarnings)
+    def hasFatalWarnings(self)->bool|float:
+        if not self.isAddressable:
+            res = np.nan
+        else:
+            res = bool(self.fatalWarnings)
+        return res
     
     @property
-    def isDamaged(self)->bool:
-        if any([self.soc < 0, self.voltage < 0, self.current < 0]):
-            self._isAlwaysDamaged = True
-        return self.hasFatalWarnings or self.bmsHasCanBusError or self._isAlwaysDamaged
+    def isDamaged(self)->bool|float:
+
+        if (not self.inSlot) or (not self.bmsON) or self.waitingForAllData:
+            return np.nan
+
+        dataPacketsAreDamagedLogic = any(np.array(self.buffers["voltage"]) < 0)
+        dataPacketsAreDamagedLogic = any(np.array(self.buffers["current"]) < 0)                                                 or dataPacketsAreDamagedLogic
+        dataPacketsAreDamagedLogic = any(np.array(self.buffers["soc"]) < 0)                                                     or dataPacketsAreDamagedLogic
+        dataPacketsAreDamagedLogic = ((self.current > self.BATTERY_IS_CHARGING_CURRENT_THRESHOLD) and (not self.relayChanneOn)) or dataPacketsAreDamagedLogic
+
+        if dataPacketsAreDamagedLogic:
+            self.dataPacketsAreDamaged = True
+            self.dataPacketsAreDamagedTimer = self.currentGlobalTime
+
+        if self.bmsHasCanBusError:
+            res = True
+        elif self.dataPacketsAreDamaged:
+            res = True
+        elif self.hasFatalWarnings:
+            res = True
+        else:
+            res = False
+            
+        return res
     
     @property
     def temps(self)->Dict[str, float]:
@@ -248,39 +308,55 @@ class Battery:
         return {maxTemperatureKey:temperatures[maxTemperatureKey]}
     
     @property
-    def isCharging(self)->bool:
-        return self.current > 0.4
+    def isCharging(self)->bool|float:
+        if (not self.inSlot) or (not self.bmsON) or (not self.relayChanneOn):
+            res = False
+        elif self.waitingForAllData or self.bmsHasCanBusError or self.dataPacketsAreDamaged:
+            res = np.nan
+        else:
+            res = self.current > self.BATTERY_IS_CHARGING_CURRENT_THRESHOLD
+        return res
     
     @property
-    def isCharged(self)->bool:
-        return (self.voltage >= 42) and (not self.isCharging)
+    def isChargedEnough(self)->bool|float:
+        if not self.isAddressable:
+            res = np.nan
+        else:
+            res = self.soc >= self.BATTERY_IS_CHARGED_ENOUGH_SOC_THRESHOLD
+        return res
 
     @property
-    def canProceedToBeCharged(self)->bool:
-        return self.isAddressable and (not self.isDamaged) and (not self.isCharged) and (not self.isBusyWithChargeProcess)
+    def canProceedToBeCharged(self)->bool: 
+        if not self.isAddressable:
+            res = False 
+        elif self.isDamaged:
+            res = False
+        elif self.isBusyWithChargeProcess:
+            res = False
+        elif self.isChargedEnough:
+            res = False
+        elif self.relayChanneOn:
+            res = False
+        else:
+            res = True
+        return res
+    
+
     
     @property
     def timeUntilFullCharge(self)->float:
-        if self.isCharged:
-            return 0
+        if self.isChargedEnough and not self.isCharging:
+            timeRemaining = 0
         
-        if    self.voltage < 30.03: voltage_ = 30.03
-        elif  self.voltage > 42.10: voltage_ = 42.10
-        else: voltage_ = self.voltage
+        elif self.soc < self.BATTERY_IS_CHARGED_ENOUGH_SOC_THRESHOLD:
+            timeRemaining = (self.BATTERY_IS_CHARGED_ENOUGH_SOC_THRESHOLD - self.soc)*self.SECONDS_PER_SOC_PERCENTAGE_INCREASE + 20*60
 
-        if voltage_ < 42.1:
-            timePassed    = voltage2TimePassed(voltage_)
-            timeRemaining = self.TOTAL_TIME_UNTIL_FULL_CHARGE - timePassed
-        
         elif self.isCharging:
-            timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
-            timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
-            timeRemaining *= self.current/self.MAX_CHARGING_CURRENT
-
+            timeRemaining = (20*60)*(self.current/self.MAX_CHARGING_CURRENT)
+        
         else:
-            timeRemaining  = self.TOTAL_TIME_UNTIL_FULL_CHARGE
-            timeRemaining -= self.PARTIAL_TIME_UNTIL_FULL_CHARGE
-
+            timeRemaining = np.nan
+        
         return timeRemaining
     
     
@@ -296,7 +372,19 @@ class Battery:
     
     @property
     def isDeliverableToUser(self)->bool:
-        return self.isAddressable and (not self.isDamaged) and self.isCharged and (not self.isBusyWithChargeProcess)
+        if not self.isAddressable:
+            res = False
+        elif self.isDamaged:
+            res = False
+        elif self.isBusyWithChargeProcess:
+            res = False
+        elif not self.isChargedEnough:
+            res = False
+        elif self.relayChanneOn:
+            res = False
+        else:
+            res = True
+        return res
     
     @property
     def proccessToStartChargeIsActive(self)->bool:
@@ -318,7 +406,11 @@ class Battery:
 
     @property
     def isBusyWithChargeProcess(self):
-        return self.isCharging or self.proccessToStartChargeIsActive or self.proccessToFinishChargeIsActive
+        if self.proccessToStartChargeIsActive or self.proccessToFinishChargeIsActive:
+            res = True
+        else:
+            res = self.isCharging
+        return res
 
     
     
@@ -358,11 +450,12 @@ class Battery:
         print(f"fatalWarnings: {self.fatalWarnings}")
         print(f"hasWarnings: {self.hasWarnings}")
         print(f"hasFatalWarnings: {self.hasFatalWarnings}")
+        print(f"dataPacketsAreDamaged: {self.dataPacketsAreDamaged}")
         print(f"isDamaged: {self.isDamaged}")
         print(f"temps: {self.temps}")
         print(f"maxTemp: {self.maxTemp}")
         print(f"isCharging: {self.isCharging}")
-        print(f"isCharged: {self.isCharged}")
+        print(f"isChargedEnough: {self.isChargedEnough}")
         print(f"canProceedToBeCharged: {self.canProceedToBeCharged}")
         print(f"timeUntilFullChargeInStrFormat: {self.timeUntilFullChargeInStrFormat}")
         print(f"isDeliverableToUser: {self.isDeliverableToUser}")
@@ -376,6 +469,7 @@ class Battery:
         print("----- TIMERS -----")
         print(f"currentGlobalTime: {self.currentGlobalTime}")
         print(f"localTimer: {self.localTimer}")
+        print(f"dataPacketsAreDamagedTimer: {self.dataPacketsAreDamagedTimer}")
 
         print()
 

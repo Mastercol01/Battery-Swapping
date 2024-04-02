@@ -1,4 +1,5 @@
 import warnings
+from math import isnan
 from collections import deque
 from functools import partial
 from typing import Callable, List
@@ -185,7 +186,7 @@ class ControlCenter:
 
             "BATTERY_IS_ADDRESSABLE"              : (False, "isAddressable"),
             "BATTERY_IS_CHARGING"                 : (False, "isCharging"),
-            "BATTERY_IS_CHARGED"                  : (False, "isCharged"),
+            "BATTERY_IS_CHARGED_ENOUGH"           : (False, "isChargedEnough"),
             "BATTERY_CAN_PROCEED_TO_BE_CHARGED"   : (False, "canProceedToBeCharged"),
             "BATTERY_HAS_WARNINGS"                : (False, "hasWarnings"),
             "BATTERY_HAS_FATAL_WARNINGS"          : (False, "hasFatalWarnings"),
@@ -198,8 +199,8 @@ class ControlCenter:
             "PROCESS_TO_FINISH_BATTERY_CHARGE_IS_ACTIVE"  : (False, "proccessToFinishChargeIsActive")
         }
         statesToMatch_ = {key:value for key,value in statesToMatch.items() if key in statesToMatchLogic.keys()}
-        res = [slotAddress for slotAddress in self.SLOT_ADDRESSES]
 
+        res = list(self.SLOT_ADDRESSES)
         for stateKeyword, stateValueToMatch in statesToMatch_.items():
 
             if len(res) < 1:
@@ -221,14 +222,66 @@ class ControlCenter:
         return None
     
     def secureAllSlots(self):
-        notSecuredDoors = self.getSlotsThatMatchStates({"DOOR_LOCK_SOLENOID" : True})
-        for slotAddress in notSecuredDoors:
+        for slotAddress in self.SLOT_ADDRESSES:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
-
-        notSecuredBatts = self.getSlotsThatMatchStates({"BATTERY_LOCK_SOLENOID" : True})
-        for slotAddress in notSecuredBatts:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
         return None
+    
+
+    def turnOnLedStripsBasedOnState(self):
+        batteries_notInSlot         = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : False })
+        batteries_damaged           = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED"             : True  })
+        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True  })
+        other_batteries             = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in 
+                                       set(batteries_notInSlot + batteries_damaged + batteries_deliverableToUser)]
+
+        for slotAddress in batteries_notInSlot:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
+
+        for slotAddress in batteries_damaged:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.PURPLE)
+
+        for slotAddress in batteries_deliverableToUser:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.GREEN)
+
+        for slotAddress in other_batteries:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.RED)
+
+        return None
+    
+    def turnOnLedStripsBasedOnState_Entry(self):
+        freeSlots     = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : False})
+        occupiedSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in freeSlots] 
+
+        for slotAddress in freeSlots:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
+
+        for slotAddress in occupiedSlots:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
+        return None
+    
+    def turnOnLedStripsBasedOnState_Egress(self):
+        slotsWithDeliverableBatteriesToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True})
+        otherSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in slotsWithDeliverableBatteriesToUser]    
+
+        try:
+            selectedSlotAddress = slotsWithDeliverableBatteriesToUser[0]
+            self.setSlotLedStripState(selectedSlotAddress, LED_STRIP_STATE.GREEN)
+        except IndexError:
+            selectedSlotAddress = None
+
+        for slotAddress in otherSlots + slotsWithDeliverableBatteriesToUser[1:]:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
+
+        return selectedSlotAddress
+
+
+    def turnOffAllLedStrips(self):
+        for slotAddress in self.SLOT_ADDRESSES:
+            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
+        return None
+
+
     
     def turnOnBmsSolenoidsWhereWise(self):
         bmsShouldBeOn = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                     : True,
@@ -247,86 +300,28 @@ class ControlCenter:
         return None
     
 
-    def turnOnLedStripsBasedOnState(self):
-        batteries_notInSlot         = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : False })
-        batteries_damaged           = self.getSlotsThatMatchStates({"BATTERY_IS_DAMAGED"             : True  })
-        batteries_deliverableToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True  })
-        other_batteries             = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : True, 
-                                                                    "BATTERY_IS_DAMAGED"             : False,
-                                                                    "BATTERY_IS_DELIVERABLE_TO_USER" : False  })
-
-        for slotAddress in batteries_notInSlot:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
-
-        for slotAddress in batteries_damaged:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.PURPLE)
-
-        for slotAddress in batteries_deliverableToUser:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.GREEN)
-
-        for slotAddress in other_batteries:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.RED)
-
-        return None
-    
-    def turnOnLedStripsBasedOnState_Entry(self):
-        freeSlots     = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : False})
-        occupiedSlots = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : True})
-
-        for slotAddress in freeSlots:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
-
-        for slotAddress in occupiedSlots:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
-        return None
-    
-    def turnOnLedStripsBasedOnState_Egress(self):
-        slotsWithDeliverableBatteriesToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True})
-        otherSlots = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : False})      
-
-        try:
-            selectedSlotAddress = slotsWithDeliverableBatteriesToUser[0]
-            self.setSlotLedStripState(selectedSlotAddress, LED_STRIP_STATE.GREEN)
-        except IndexError:
-            selectedSlotAddress = None
-
-        for slotAddress in otherSlots + slotsWithDeliverableBatteriesToUser[1:]:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
-
-        return selectedSlotAddress
-
-
-    def turnOffAllLedStrips(self):
-        for slotAddress in self.SLOT_ADDRESSES:
-            self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
-        return None
-    
     def startChargeOfSlotBatteryIfAllowable(self, slotAddress):
 
         try:
             batteryCanProceedToBeCharged = self.modules[slotAddress].battery.canProceedToBeCharged
             doorLockSolenoidIsOn         = self.modules[slotAddress].doorLockSolenoidState
             batteryLockSolenoidIsOn      = self.modules[slotAddress].batteryLockSolenoidState
-            batteryRelayChannelIsOn      = self.modules[slotAddress].battery.relayChanneOn
         except AttributeError:
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
             
 
-        if batteryCanProceedToBeCharged and (not doorLockSolenoidIsOn) and (not batteryLockSolenoidIsOn) and (not batteryRelayChannelIsOn):
-            # We charge batteries that are chargable (i.e: voltage >= 42 and not isCharging), 
-            # and also secured in their slot.
+        if batteryCanProceedToBeCharged and (not doorLockSolenoidIsOn) and (not batteryLockSolenoidIsOn):
             self.SIGNALS_DICT_START_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1, delay=500)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1000)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 1)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
             QTimer.singleShot(6000, partial(self.SIGNALS_DICT_START_CHARGE[slotAddress].emit, False))
-            print(f"batteryCanProceedToBeCharged: {batteryCanProceedToBeCharged}")
             print(f"startChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
 
         elif doorLockSolenoidIsOn or batteryLockSolenoidIsOn:
-            msg = f"WARNING: Battery on {slotAddress} could proceed to be charged, but it is unsafe to do so"
-            msg = f"{msg} as long as it is not secured in place. Ignoring command."
+            msg = f"WARNING: doorLockSolenoidIsOn=={doorLockSolenoidIsOn} and batteryLockSolenoidIsOn=={batteryLockSolenoidIsOn} on {slotAddress}."
+            msg = f"{msg}. It is unsafe to proceed. Ignoring command."
             warnings.warn(msg)
             return None
         
@@ -343,74 +338,58 @@ class ControlCenter:
         """
 
         try:
+            batteryInSlot                  = self.modules[slotAddress].battery.inSlot       
+            batteryBmsIsOn                 = self.modules[slotAddress].battery.bmsON
+            batteryRelayChannelIsOn        = self.modules[slotAddress].battery.relayChanneOn
+
+            batteryIsWaitingForAllData     = self.modules[slotAddress].battery.waitingForAllData
             batteryIsDamaged               = self.modules[slotAddress].battery.isDamaged
-            batteryIsCharging              = self.modules[slotAddress].battery.isCharging
-            batteryIsCharged               = self.modules[slotAddress].battery.isCharged
+        
+            batteryIsAddressable           = self.modules[slotAddress].battery.isAddressable
+            batteryisChargedEnough         = self.modules[slotAddress].battery.isChargedEnough
             batteryIsBusyWithChargeProcess = self.modules[slotAddress].battery.isBusyWithChargeProcess
-            batteryBmsHasCanBusError       = self.modules[slotAddress].battery.bmsHasCanBusError
             batteryRelayChannelIsOn        = self.modules[slotAddress].battery.relayChanneOn
         except AttributeError: 
             Exception("'slotAddress' is not valid. It must be of type MODULE_ADDRESS.SLOTi")
 
-        
-        if batteryIsCharging and (batteryIsDamaged or forcedStop):
-            # If the battery becomes damaged during charging, we forzably stop the charging process. 
-            # We also stop it if it is explicitly enforced by the developer.
+        if isnan(batteryInSlot):           batteryInSlot           = False
+        if isnan(batteryBmsIsOn):          batteryBmsIsOn          = False
+        if isnan(batteryRelayChannelIsOn): batteryRelayChannelIsOn = False
 
+
+        if (not batteryInSlot) or (not batteryBmsIsOn) or (not batteryRelayChannelIsOn):
+            return None
+        
+        elif ((not batteryInSlot) or (not batteryBmsIsOn)) and batteryRelayChannelIsOn and (not batteryIsBusyWithChargeProcess):
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0)
+            return None
+        
+        elif (batteryInSlot and batteryBmsIsOn and batteryRelayChannelIsOn) and (batteryIsWaitingForAllData or batteryIsDamaged or forcedStop):
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
             self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0,  delay=10000)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
             QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
 
-            if forcedStop:
-                msg = f"WARNING: PERFORMING MANUAL FORCED STOP OF THE CHARGING PROCESS FOR Battery{slotAddress}."
-            else:
-                msg = f"WARNING: Battery{slotAddress} has become damaged (isDamaged == True)."
-                msg = f"{msg}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
-
+            msg = f"WARNING: Forcibly stopping possible charge due to the following states: batteryIsWaitingForAllData=={batteryIsWaitingForAllData}"
+            msg = f"{msg}, batteryIsDamaged=={batteryIsDamaged} and forcedStop=={forcedStop}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
             warnings.warn(msg)
-            
-            print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
+
+            print(f"finishChargeOfSlotBatteryIfAllowable was forcibly triggered on slot: {slotAddress}")
             return None
-            
-        elif batteryIsCharged and (not batteryIsBusyWithChargeProcess) and batteryRelayChannelIsOn:
+
+        elif batteryIsAddressable and batteryRelayChannelIsOn and batteryisChargedEnough and (not batteryIsBusyWithChargeProcess):
             # When the battery has finished its charging process, we shut down the charger in the correct way.
             self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0, delay=500)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1, delay=1000)
+            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0)
+            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1)
             QTimer.singleShot(6000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
-
-            print(f"batteryIsCharged: {batteryIsCharged}")
-            print(f"not batteryIsBusyWithChargeProcess: {not batteryIsBusyWithChargeProcess}")
             print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
             return None
-        
-        elif batteryBmsHasCanBusError and batteryRelayChannelIsOn:
-            # It may be that the battery becomes incommunicated due to an error in the BMS's CAN-bus.
-            # If that happens we want to make sure that charging is physically impossible. Whether the 
-            # charge is still on going, it's already finished or just never took place is unknown in this case.
-            # Regardless, We shall assume the worst case scenario. That is, the relay channel is ON while
-            # the battery posseses a CAN BUS error (which can only happen if the BMS is ON), we assume that
-            # the battery was in the middle of a charging cycle when it became incomunicated and forzably shut
-            # down the charging process. 
-        
-            self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit(True)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    0)
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0,  delay=10000)
-            self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS,    1,  delay=11000)
-            QTimer.singleShot(12000, partial(self.SIGNALS_DICT_FINISH_CHARGE[slotAddress].emit, False))
-
-            msg = f"WARNING: Battery{slotAddress} has become incommunicated (bmsHasCanBusError == True)."
-            msg = f"{msg}. due to damage to the BMS's can bus. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
-            warnings.warn(msg)
-
-            print(f"finishChargeOfSlotBatteryIfAllowable was triggered on slot: {slotAddress}")
-            return None
-        
         
         return None
+        
     
 
     def startChargeOfSlotBatteriesIfAllowable(self):
