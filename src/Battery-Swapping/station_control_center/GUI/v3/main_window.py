@@ -594,9 +594,9 @@ class MainWindow(QMainWindow):
         self.show_window[WINS.LOCK_SCREEN]()
         self.hardware_shutdown()
         self.SIGNALS.terminate_RfidReadWorker.emit()
-        QTimer.singleShot(4000, self.SIGNALS.terminate_SerialReadWorker.emit)
-        QTimer.singleShot(9000, self.readyToCloseAppTrue)
-        QTimer.singleShot(10000, self.close)
+        QTimer.singleShot(5000, self.SIGNALS.terminate_SerialReadWorker.emit)
+        QTimer.singleShot(10000, self.readyToCloseAppTrue)
+        QTimer.singleShot(11000, self.close)
         return None
 
     def closeEvent(self, e):

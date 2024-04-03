@@ -3,6 +3,7 @@ from math import isnan
 from collections import deque
 from functools import partial
 from typing import Callable, List
+from BSS_control import CanUtils as canUtils
 
 
 from PyQt5.QtCore import (
@@ -226,7 +227,6 @@ class ControlCenter:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.DOOR_LOCK, 0)
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BATTERY_LOCK, 0)
         return None
-    
 
     def turnOnLedStripsBasedOnState(self):
         batteries_notInSlot         = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                : False })
@@ -251,7 +251,7 @@ class ControlCenter:
     
     def turnOnLedStripsBasedOnState_Entry(self):
         freeSlots     = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT" : False})
-        occupiedSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in freeSlots] 
+        occupiedSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in freeSlots]
 
         for slotAddress in freeSlots:
             self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.BLUE)
@@ -262,7 +262,7 @@ class ControlCenter:
     
     def turnOnLedStripsBasedOnState_Egress(self):
         slotsWithDeliverableBatteriesToUser = self.getSlotsThatMatchStates({"BATTERY_IS_DELIVERABLE_TO_USER" : True})
-        otherSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in slotsWithDeliverableBatteriesToUser]    
+        otherSlots = [slotAddress for slotAddress in self.SLOT_ADDRESSES if slotAddress not in slotsWithDeliverableBatteriesToUser] 
 
         try:
             selectedSlotAddress = slotsWithDeliverableBatteriesToUser[0]
@@ -281,12 +281,12 @@ class ControlCenter:
             self.setSlotLedStripState(slotAddress, LED_STRIP_STATE.OFF)
         return None
 
-
     
     def turnOnBmsSolenoidsWhereWise(self):
         bmsShouldBeOn = self.getSlotsThatMatchStates({"BATTERY_IN_SLOT"                     : True,
                                                       "BATTERY_BMS_IS_ON"                   : False,
-                                                      "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False})
+                                                      "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False,
+                                                      "BATTERY_RELAY_CHANNEL_IS_ON"         : False})
         for slotAddress in bmsShouldBeOn:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 1)
         return None
@@ -358,10 +358,6 @@ class ControlCenter:
 
 
         if (not batteryInSlot) or (not batteryBmsIsOn) or (not batteryRelayChannelIsOn):
-            return None
-        
-        elif ((not batteryInSlot) or (not batteryBmsIsOn)) and batteryRelayChannelIsOn and (not batteryIsBusyWithChargeProcess):
-            self.setRelayChannelState(CHANNEL_NAME(slotAddress.value-1), 0)
             return None
         
         elif (batteryInSlot and batteryBmsIsOn and batteryRelayChannelIsOn) and (batteryIsWaitingForAllData or batteryIsDamaged or forcedStop):
