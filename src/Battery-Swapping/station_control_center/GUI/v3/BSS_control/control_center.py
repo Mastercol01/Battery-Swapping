@@ -295,6 +295,7 @@ class ControlCenter:
         bmsShouldBeOff = self.getSlotsThatMatchStates({"BATTERY_BMS_IS_ON"                   : True,
                                                        "BATTERY_IS_BUSY_WITH_CHARGE_PROCESS" : False,
                                                        "BATTERY_RELAY_CHANNEL_IS_ON"         : False})
+        
         for slotAddress in bmsShouldBeOff:
             self.setSlotSolenoidState(slotAddress, SOLENOID_NAME.BMS, 0)
         return None
@@ -370,8 +371,6 @@ class ControlCenter:
             msg = f"WARNING: Forcibly stopping possible charge due to the following states: batteryIsWaitingForAllData=={batteryIsWaitingForAllData}"
             msg = f"{msg}, batteryIsDamaged=={batteryIsDamaged} and forcedStop=={forcedStop}. FORCIBLY STOPPING THE CHARGE PROCESS NOW."
             warnings.warn(msg)
-
-            print(f"finishChargeOfSlotBatteryIfAllowable was forcibly triggered on slot: {slotAddress}")
             return None
 
         elif batteryIsAddressable and batteryRelayChannelIsOn and batteryisChargedEnough and (not batteryIsBusyWithChargeProcess):

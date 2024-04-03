@@ -107,8 +107,8 @@ class MainWindow(QMainWindow):
 
         self.windows[WINS.LOCK_SCREEN].text = "BOOTING UP..."
         QTimer.singleShot(10000, self.hardware_setup)
-        QTimer.singleShot(19500, self.isNotBootingUp)
         QTimer.singleShot(20000, self.workFlowReset)
+        QTimer.singleShot(20250, self.isNotBootingUp)
         return None
     
 
@@ -306,7 +306,7 @@ class MainWindow(QMainWindow):
             elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
                 self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
 
-        if self.attendingUser and (self.currentWindow not in [WINS.OPTIONS_PANEL, WINS.USER_PROMPT_PANEL]) and (not self.isBootingUp) and (not self.isShuttingDown) and self.user is not None:
+        if self.attendingUser and (self.currentWindow not in [WINS.OPTIONS_PANEL, WINS.USER_PROMPT_PANEL]) and (not self.isBootingUp) and (not self.isShuttingDown) and (self.user is not None):
             self.ControlCenter_obj.turnOnLedStripsBasedOnState()
 
         return None
@@ -565,7 +565,12 @@ class MainWindow(QMainWindow):
         self.user = None
         self.moduleStatusPanelToUpdate = None
         self.checkingForUserAndBatteryInteraction = False
-        self.hardware_setup()
+
+        if self.isShuttingDown:
+            self.hardware_shutdown()
+        elif not self.isBootingUp:
+            self.hardware_setup()
+
         resetMsg = "POR FAVOR ACERQUE SU TARJETA AL LECTOR PARA INICIAR"
         self.windows[WINS.LOCK_SCREEN].text = resetMsg
         self.show_window[WINS.LOCK_SCREEN]()
@@ -592,7 +597,6 @@ class MainWindow(QMainWindow):
         self.workFlowReset()
         self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
         self.show_window[WINS.LOCK_SCREEN]()
-        self.hardware_shutdown()
         self.SIGNALS.terminate_RfidReadWorker.emit()
         QTimer.singleShot(5000, self.SIGNALS.terminate_SerialReadWorker.emit)
         QTimer.singleShot(10000, self.readyToCloseAppTrue)
