@@ -77,7 +77,8 @@ class MainWindowSignals(QObject):
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
     USER_INTERACTION_TIMEOUT = 180000
-    BATTERY_INTERACTION_EMIT_TIMEOUT = 1000
+    BATTERY_ENTRY_INTERACTION_EMIT_TIMEOUT = 1000
+    BATTERY_EGRESS_INTERACTION_EMIT_TIMEOUT = 3000
     
 
     def __init__(self):
@@ -189,6 +190,13 @@ class MainWindow(QMainWindow):
         goForwardButtonAction = QAction(QIcon(goForwardIcon), "Go Forward", self)
         goForwardButtonAction.triggered.connect(self.goForward)
         toolbar.addAction(goForwardButtonAction)
+
+        # Toggle between fullscreen and normal mode using F11 key.
+        self.fullscreen_action = QAction("&Fullscreen", self)
+        self.fullscreen_action.setShortcut("F11")
+        self.fullscreen_action.setStatusTip("Toggle Fullscreen Mode")
+        self.fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        self.addAction(self.fullscreen_action)
         return None 
     def showAboutUsSection(self):
         if self.currentWindow == WINS.LOCK_SCREEN:
@@ -278,7 +286,7 @@ class MainWindow(QMainWindow):
                 self.numBattsStationDelta += 1
                 slotTargeted = [slotAddress for slotAddress in self.freeSlots if slotAddress not in freeSlots][0]
                 QTimer.singleShot(
-                    self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
+                    self.BATTERY_ENTRY_INTERACTION_EMIT_TIMEOUT, 
                     partial(self.batteryEntry_workflow_part2, slotTargeted.value))
                 self.checkingForUserAndBatteryInteraction = False
 
@@ -288,7 +296,7 @@ class MainWindow(QMainWindow):
                 self.numBattsStationDelta -= 1
                 slotTargeted = [slotAddress for slotAddress in freeSlots if slotAddress not in self.freeSlots][0]
                 QTimer.singleShot(
-                    self.BATTERY_INTERACTION_EMIT_TIMEOUT, 
+                    self.BATTERY_EGRESS_INTERACTION_EMIT_TIMEOUT, 
                     partial(self.batteryEgress_workflow_part2, slotTargeted.value))
                 self.checkingForUserAndBatteryInteraction = False
 
@@ -403,6 +411,7 @@ class MainWindow(QMainWindow):
         if msg is not None:
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
             QTimer.singleShot(3000, self.workFlowReset)
@@ -420,6 +429,7 @@ class MainWindow(QMainWindow):
             msg = "POR FAVOR INGRESE LA 1ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["INPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
 
@@ -441,7 +451,7 @@ class MainWindow(QMainWindow):
             msg = "¡BATERÍAS INGRESADAS EXITOSAMENTE!"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
-            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
@@ -492,6 +502,7 @@ class MainWindow(QMainWindow):
         if msg is not None:
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["ATTENTION"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
             QTimer.singleShot(3000, self.workFlowReset)
@@ -511,6 +522,7 @@ class MainWindow(QMainWindow):
             msg = "POR FAVOR RETIRE LA 1ª BATERÍA DEL SLOT VERDE INDICADO"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["OUTPUT"])
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             self.show_window[WINS.USER_PROMPT_PANEL]()
             self.ControlCenter_obj.setSlotSolenoidsStates(selectedSlotAddress, [0,1,1])
@@ -529,7 +541,7 @@ class MainWindow(QMainWindow):
             msg = "¡BATERÍAS RETIRADAS EXITOSAMENTE!"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
-            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,400,400)
+            self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
             slotTargeted = MODULE_ADDRESS(slotTargetedValue)
             self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
@@ -609,7 +621,13 @@ class MainWindow(QMainWindow):
         else:
             self.exitCall()
             e.ignore()
-        return None
+        return None 
+
+    def toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
     
  
         

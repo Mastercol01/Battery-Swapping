@@ -24,7 +24,7 @@ class UserPromptPanelWindow(QWidget):
         self.mainLabel = QLabel()
         self.mainLabel.setWordWrap(True)
         self.mainLabel.setAlignment(Qt.AlignCenter)
-        self.fontSize = 25
+        self.fontSize = 23
 
         self.mainLayoutV = QVBoxLayout()
         self.mainLayoutH = QHBoxLayout()
