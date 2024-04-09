@@ -11,6 +11,7 @@ from GUI_windows.super_access_options_panel import SuperAccessOptionsPanelWindow
 from GUI_windows.super_access_slot_status_panel import SuperAccessSlotStatusPanelWindow
 from GUI_windows.super_access_eight_channel_relay_status_panel import SuperAccessEightChannelRelayStatusPanel
 from GUI_windows.super_access_battery_status_panel import SuperAccessBatteryStatusPanelWindow
+from GUI_windows.super_access_manual_slot_control import SuperAccessManualSlotControl
 
 from PyQt5.QtGui import (
     QIcon)
@@ -65,6 +66,7 @@ class WINS(Enum):
     SUPER_ACCESS_SLOT_STATUS_PANEL = 5
     SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL = 6
     SUPER_ACCESS_BATTERY_STATUS_PANEL = 7
+    SUPER_ACCESS_MANUAL_SLOT_CONTROL = 8
 
 
 class MainWindowSignals(QObject):
@@ -76,7 +78,7 @@ class MainWindowSignals(QObject):
 
 class MainWindow(QMainWindow):
     SIGNALS = MainWindowSignals()
-    USER_INTERACTION_TIMEOUT = 180000
+    USER_INTERACTION_TIMEOUT = 2.5*60*1000
     BATTERY_ENTRY_INTERACTION_EMIT_TIMEOUT = 1000
     BATTERY_EGRESS_INTERACTION_EMIT_TIMEOUT = 3000
     
@@ -144,7 +146,8 @@ class MainWindow(QMainWindow):
             WINS.SUPER_ACCESS_OPTIONS_PANEL                    : SuperAccessOptionsPanelWindow(),
             WINS.SUPER_ACCESS_SLOT_STATUS_PANEL                : SuperAccessSlotStatusPanelWindow(self.ControlCenter_obj),
             WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL : SuperAccessEightChannelRelayStatusPanel(self.ControlCenter_obj),
-            WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL             : SuperAccessBatteryStatusPanelWindow(self.ControlCenter_obj)
+            WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL             : SuperAccessBatteryStatusPanelWindow(self.ControlCenter_obj),
+            WINS.SUPER_ACCESS_MANUAL_SLOT_CONTROL              : SuperAccessManualSlotControl(self.ControlCenter_obj)
         }
         
         for key in self.windows.keys():
@@ -217,6 +220,7 @@ class MainWindow(QMainWindow):
             self.moduleStatusPanelToUpdate = None
             self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].clear()
             self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].clear()
+            self.windows[WINS.SUPER_ACCESS_MANUAL_SLOT_CONTROL].clear()
 
         elif self.currentWindow == WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_OPTIONS_PANEL]()
@@ -226,13 +230,20 @@ class MainWindow(QMainWindow):
         elif self.currentWindow == WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL]()
 
+        elif self.currentWindow == WINS.SUPER_ACCESS_MANUAL_SLOT_CONTROL:
+            self.show_window[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL]()
+
         elif (self.currentWindow == WINS.USER_PROMPT_PANEL) and self.attendingUser and (self.numBattsStationDelta == 0):
             self.show_window[WINS.OPTIONS_PANEL]()
-            
+
+    
         return None
     def goForward(self):
         if self.currentWindow == WINS.SUPER_ACCESS_SLOT_STATUS_PANEL:
             self.show_window[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL]()
+
+        elif self.currentWindow == WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL:
+            self.show_window[WINS.SUPER_ACCESS_MANUAL_SLOT_CONTROL]()
         return None
     
 
@@ -310,6 +321,7 @@ class MainWindow(QMainWindow):
             if self.user["superAccess"] and self.moduleStatusPanelToUpdate in self.ControlCenter_obj.SLOT_ADDRESSES:
                 self.windows[WINS.SUPER_ACCESS_SLOT_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
                 self.windows[WINS.SUPER_ACCESS_BATTERY_STATUS_PANEL].update(self.moduleStatusPanelToUpdate)
+                self.windows[WINS.SUPER_ACCESS_MANUAL_SLOT_CONTROL].update(self.moduleStatusPanelToUpdate)
 
             elif self.user["superAccess"] and self.moduleStatusPanelToUpdate == self.ControlCenter_obj.EIGHT_CHANNEL_RELAY_ADDRESS:
                 self.windows[WINS.SUPER_ACCESS_EIGHT_CHANNEL_RELAY_STATUS_PANEL].update()
@@ -442,8 +454,13 @@ class MainWindow(QMainWindow):
         elif self.user["numBatts"] == 1 and self.numBattsStationDelta == 1:
             msg = "POR FAVOR INGRESE LA 2ª BATERÍA EN UN SLOT AZUL DE SU ELECCIÓN"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
-            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
-            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+
+            if slotTargetedValue is not None:
+                slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+                self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+            else:
+                warnings.warn(f"slotTargetedValue == {slotTargetedValue}")
+
             self.checkingForUserAndBatteryInteraction = True
 
 
@@ -453,8 +470,13 @@ class MainWindow(QMainWindow):
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
             self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
-            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
-            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+
+            if slotTargetedValue is not None:
+                slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+                self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [1,0,0])
+            else:
+                warnings.warn(f"slotTargetedValue == {slotTargetedValue}")
+
             self.checkingForUserAndBatteryInteraction = False
             self.numBattsStationDelta = 0
 
@@ -532,9 +554,14 @@ class MainWindow(QMainWindow):
             selectedSlotAddress = self.ControlCenter_obj.turnOnLedStripsBasedOnState_Egress()
             msg = "POR FAVOR RETIRE LA 2ª BATERÍA DEL SLOT VERDE INDICADO"
             self.windows[WINS.USER_PROMPT_PANEL].text = msg
-            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
-            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
-            self.ControlCenter_obj.setSlotSolenoidsStates(selectedSlotAddress, [0,1,1])
+
+            if slotTargetedValue is not None:
+                slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+                self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
+                self.ControlCenter_obj.setSlotSolenoidsStates(selectedSlotAddress, [0,1,1])
+            else: 
+                warnings.warn(f"slotTargetedValue == {slotTargetedValue}")
+
             self.checkingForUserAndBatteryInteraction = True            
 
         else:
@@ -543,8 +570,13 @@ class MainWindow(QMainWindow):
             self.windows[WINS.USER_PROMPT_PANEL].setImgs(0, SYMBOLS_PATHS["SUCCESS"])
             self.windows[WINS.USER_PROMPT_PANEL].resizeImgs(0,325,325)
             self.windows[WINS.USER_PROMPT_PANEL].setImgsEqual()
-            slotTargeted = MODULE_ADDRESS(slotTargetedValue)
-            self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
+
+            if slotTargetedValue is not None:
+                slotTargeted = MODULE_ADDRESS(slotTargetedValue)
+                self.ControlCenter_obj.setSlotSolenoidsStates(slotTargeted, [0,0,0])
+            else: 
+                warnings.warn(f"slotTargetedValue == {slotTargetedValue}")
+
             self.checkingForUserAndBatteryInteraction = False
             self.numBattsStationDelta = 0
 
@@ -605,14 +637,15 @@ class MainWindow(QMainWindow):
         return None
     
     def exitCall(self):
-        self.isShuttingDown = True
-        self.workFlowReset()
-        self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
-        self.show_window[WINS.LOCK_SCREEN]()
-        self.SIGNALS.terminate_RfidReadWorker.emit()
-        QTimer.singleShot(5000, self.SIGNALS.terminate_SerialReadWorker.emit)
-        QTimer.singleShot(10000, self.readyToCloseAppTrue)
-        QTimer.singleShot(11000, self.close)
+        if not self.isShuttingDown:
+            self.isShuttingDown = True
+            self.workFlowReset()
+            self.windows[WINS.LOCK_SCREEN].text = "SHUTTING DOWN ..."
+            self.show_window[WINS.LOCK_SCREEN]()
+            self.SIGNALS.terminate_RfidReadWorker.emit()
+            QTimer.singleShot(5000, self.SIGNALS.terminate_SerialReadWorker.emit)
+            QTimer.singleShot(10000, self.readyToCloseAppTrue)
+            QTimer.singleShot(10500, self.close)
         return None
 
     def closeEvent(self, e):
